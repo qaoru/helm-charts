@@ -52,9 +52,10 @@ spec:
               }
 
               // Grant dbOwner on UniFi databases
-              db.grantRolesToUser("${UNIFI_DB_USER}", [{ role: "dbOwner", db: "unifi" }])
-              db.grantRolesToUser("${UNIFI_DB_USER}", [{ role: "dbOwner", db: "unifi_stat" }])
-              db.grantRolesToUser("${UNIFI_DB_USER}", [{ role: "dbOwner", db: "unifi_audit" }])
+              db.grantRolesToUser("${UNIFI_DB_USER}", [{ role: "dbOwner", db: "${MONGO_DBNAME}" }])
+              db.grantRolesToUser("${UNIFI_DB_USER}", [{ role: "dbOwner", db: "${MONGO_DBNAME}_stat" }])
+              db.grantRolesToUser("${UNIFI_DB_USER}", [{ role: "dbOwner", db: "${MONGO_DBNAME}_audit" }])
+              db.grantRolesToUser("${UNIFI_DB_USER}", [{ role: "dbOwner", db: "${MONGO_DBNAME}_restore" }])
               EOF
           env:
           {{- with .Values.database }}
@@ -62,6 +63,8 @@ spec:
               value: {{ .host }}
             - name: MONGO_PORT
               value: "{{ .port }}"
+            - name: MONGO_DBNAME
+              value: {{ .dbName }}
             - name: MONGO_ADMIN_USER
               valueFrom:
                 secretKeyRef:
