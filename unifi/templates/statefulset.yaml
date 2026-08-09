@@ -31,7 +31,8 @@ spec:
 
       initContainers:
         - name: init-mongodb
-          image: mongo:7.0
+          image: "{{ .Values.database.initImage.repository }}:{{ .Values.database.initImage.tag | toString }}"
+          imagePullPolicy: {{ .Values.database.initImage.pullPolicy }}
           command:
             - sh
             - -c
@@ -88,6 +89,10 @@ spec:
           {{- end }}
           {{- with .Values.initContainerSecurityContext }}
           securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.initContainerResources }}
+          resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
 

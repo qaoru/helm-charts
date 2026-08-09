@@ -5,9 +5,32 @@ name: unifi
 description: The unifi software is a powerful, enterprise wireless software engine ideal for high-density client deployments requiring low latency and high uptime performance.
 version: 1.0.2
 appVersion: 10.3.58-ls128
+home: https://github.com/qaoru/unifi-helm-chart
+icon: https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/ubiquiti-unifi.svg
 maintainers:
   - name: qaoru
     email: paul@qaoru.fr
 keywords:
   - network
   - unifi
+  - ubiquiti
+  - controller
+annotations:
+  artifacthub.io/changes: |
+    - kind: added
+      description: Artifact Hub metadata (icon, links, maintainers, images)
+    - kind: changed
+      description: Make MongoDB init container image configurable
+  artifacthub.io/links: |
+    - name: UniFi Network Application (linuxserver image)
+      url: https://hub.docker.com/r/linuxserver/unifi-network-application
+    - name: Source repository
+      url: https://github.com/qaoru/unifi-helm-chart
+  artifacthub.io/maintainers: |
+    - name: qaoru
+      email: paul@qaoru.fr
+  artifacthub.io/images: |
+    - name: unifi
+      image: linuxserver/unifi-network-application:10.3.58-ls128
+    - name: mongo-init
+      image: mongo:7.0

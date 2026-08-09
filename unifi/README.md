@@ -1,8 +1,8 @@
 # unifi
 
-![Version: 1.0.0](https://img.shields.io/badge/Version-1.0.0-informational?style=flat-square)
+![Version: 1.0.2](https://img.shields.io/badge/Version-1.0.2-informational?style=flat-square)
 ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square)
-![AppVersion: 10.1.89-ls124](https://img.shields.io/badge/AppVersion-10.1.89-ls124-informational?style=flat-square)
+![AppVersion: 10.3.58-ls128](https://img.shields.io/badge/AppVersion-10.3.58-ls128-informational?style=flat-square)
 
 The unifi software is a powerful, enterprise wireless software engine ideal for high-density client deployments requiring low latency and high uptime performance.
 
@@ -30,7 +30,7 @@ kubectl create secret generic unifi-db-credentials \
 ### 2. Install the chart
 
 ```bash
-helm install unifi oci://ghcr.io/qaoru/helm-charts/unifi --version 1.0.0 \
+helm install unifi oci://ghcr.io/qaoru/helm-charts/unifi --version 1.0.2 \
   --set database.host=<your-mongodb-host> \
   --set database.credentials.generate=true
 ```
@@ -38,13 +38,7 @@ helm install unifi oci://ghcr.io/qaoru/helm-charts/unifi --version 1.0.0 \
 Or with a local `values.yaml`:
 
 ```bash
-helm install unifi oci://ghcr.io/qaoru/helm-charts/unifi --version 1.0.0 -f values.yaml
-```
-
-Or with a local `values.yaml`:
-
-```bash
-helm install unifi oci://ghcr.io/qaoru/helm-charts/unifi --version 1.0.0 -f values.yaml
+helm install unifi oci://ghcr.io/qaoru/helm-charts/unifi --version 1.0.2 -f values.yaml
 ```
 
 ## Configuration
@@ -88,13 +82,14 @@ Data is persisted at `/config` via a StatefulSet `volumeClaimTemplate` (default 
 |-----|------|---------|-------------|
 | affinity | object | `{}` | Affinity rules for pod scheduling |
 | containerSecurityContext | string | `nil` | Security context for the main container (defaults to none) |
-| database | object | `{"authSource":"admin","credentials":{"generate":false,"passwordKey":"password","secretName":"unifi-db-credentials","usernameKey":"username"},"dbName":"unifi","host":"mongodb","initCredentials":{"passwordKey":"admin-password","secretName":"unifi-db-credentials","usernameKey":"admin-username"},"port":27017}` | MongoDB connection settings |
+| database | object | `{"authSource":"admin","credentials":{"generate":false,"passwordKey":"password","secretName":"unifi-db-credentials","usernameKey":"username"},"dbName":"unifi","host":"mongodb","initCredentials":{"passwordKey":"admin-password","secretName":"unifi-db-credentials","usernameKey":"admin-username"},"initImage":{"pullPolicy":"IfNotPresent","repository":"mongo","tag":"7.0"},"port":27017}` | MongoDB connection settings |
 | env | object | `{"PGID":"1000","PUID":"1000","TZ":"Europe/Paris"}` | Environment variables for the UniFi container |
 | extraEnv | list | `[]` | Additional environment variables as a list of {name, value} objects |
 | extraVolumeMounts | list | `[]` | Extra volume mounts for the main container |
 | extraVolumes | list | `[]` | Extra volumes for the pod |
 | image | object | `{"pullPolicy":"IfNotPresent","repository":"linuxserver/unifi-network-application","tag":null}` | Image configuration |
 | ingress | object | `{"annotations":{"server-ssl":"true"},"className":"","enabled":false,"hosts":[{"host":"unifi.example.com","paths":[{"path":"/","pathType":"Prefix"}]}],"tls":[]}` | Ingress configuration |
+| initContainerResources | string | `nil` | Resources for the init container (defaults to none) |
 | initContainerSecurityContext | object | `{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]}}` | Security context for the init container |
 | networkPolicy | object | `{"cilium":{"egress":[{"toFQDNs":[{"matchName":"fw-update.ubnt.com"},{"matchName":"fw-download.ubnt.com"}]},{"toEndpoints":[{"matchLabels":{"k8s:io.kubernetes.pod.namespace":"kube-system","k8s:k8s-app":"kube-dns"}}],"toPorts":[{"ports":[{"port":"53","protocol":"UDP"},{"port":"53","protocol":"TCP"}],"rules":{"dns":[{"matchName":"fw-update.ubnt.com"},{"matchName":"fw-download.ubnt.com"}]}}]}],"ingress":[{"toPorts":[{"ports":[{"port":"http-inform"}]}]}]},"egress":{},"enabled":false,"flavor":"kubernetes","ingress":[{"ports":[{"port":"http-inform","protocol":"TCP"}]}]}` | Network policy configuration |
 | nodeSelector | object | `{}` | Node selector for pod scheduling |

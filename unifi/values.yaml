@@ -29,6 +29,14 @@ database:
   dbName: unifi
   ## -- MongoDB authentication source
   authSource: admin
+  ## -- Image used by the init container to provision the UniFi MongoDB user
+  initImage:
+    ## -- Init container image repository
+    repository: mongo
+    ## -- Init container image tag
+    tag: "7.0"
+    ## -- Init container image pull policy
+    pullPolicy: IfNotPresent
   ## -- Credentials for the UniFi database user
   credentials:
     ## -- Whether to generate a secret with a random password
@@ -136,6 +144,9 @@ initContainerSecurityContext:
   allowPrivilegeEscalation: false
   capabilities:
     drop: ['ALL']
+
+# -- Resources for the init container (defaults to none)
+initContainerResources: ~
 
 # -- Security context for the main container (defaults to none)
 containerSecurityContext: ~
