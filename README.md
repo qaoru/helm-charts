@@ -2,7 +2,7 @@
 
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/qaoru/unifi-helm-chart?style=flat-square)](https://github.com/qaoru/unifi-helm-chart/releases)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue?style=flat-square)](./LICENSE)
-[![Chart version](https://img.shields.io/badge/chart%20version-1.0.2-informational?style=flat-square)](https://github.com/qaoru/unifi-helm-chart/releases/tag/v1.0.2)
+[![Chart version](https://img.shields.io/badge/chart%20version-1.0.4-informational?style=flat-square)](https://github.com/qaoru/unifi-helm-chart/releases/tag/v1.0.4)
 
 A Helm chart for deploying the [UniFi Network Application](https://ui.com) as a
 StatefulSet on Kubernetes. It runs the
@@ -32,7 +32,7 @@ container.
 Install the latest published version from the GitHub Container Registry:
 
 ```bash
-helm install unifi oci://ghcr.io/qaoru/helm-charts/unifi --version 1.0.2 \
+helm install unifi oci://ghcr.io/qaoru/helm-charts/unifi --version 1.0.4 \
   --set database.host=<your-mongodb-host> \
   --set database.credentials.generate=true
 ```
@@ -57,22 +57,6 @@ resources, security contexts, etc.), see the
 - A running MongoDB instance reachable from the cluster, with admin credentials
   stored in a Kubernetes `Secret`
 
-## Repository layout
-
-```
-.
-├── .github/
-│   └── workflows/
-│       └── release.yaml      # lint, package, push (signed) to GHCR on tag
-├── LICENSE                    # Apache-2.0
-└── unifi/                     # the Helm chart
-    ├── Chart.yaml
-    ├── README.md              # chart documentation (rendered from README.md.gotmpl)
-    ├── README.md.gotmpl
-    ├── values.yaml
-    └── templates/
-```
-
 ## Development
 
 Lint the chart:
@@ -94,19 +78,6 @@ values or the template:
 ```bash
 helm-docs unifi/
 ```
-
-## Releases
-
-Releases are tag-driven. Pushing a `vX.Y.Z` tag triggers
-[`.github/workflows/release.yaml`](.github/workflows/release.yaml), which:
-
-1. Lints and packages the chart.
-2. Pushes it to `oci://ghcr.io/qaoru/helm-charts/unifi`.
-3. Signs the OCI artifact with [cosign](https://github.com/sigstore/cosign).
-4. Creates a GitHub Release with the packaged chart attached.
-
-Always bump `version` (and `appVersion` when the UniFi image moves) in
-`unifi/Chart.yaml` **before** tagging.
 
 ## Contributing
 
