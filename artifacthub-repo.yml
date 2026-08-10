@@ -12,7 +12,7 @@
 # Verified publisher: uncomment `repositoryID` and paste the ID shown on your
 # repository's card in the Artifact Hub control panel:
 #   https://artifacthub.io/control-panel/repositories
-# repositoryID: <paste-your-repository-id-here>
+repositoryID: 16857b04-6974-46f6-8ede-837fe7bec7a5
 owners:
   - name: qaoru
     email: paul@qaoru.fr
