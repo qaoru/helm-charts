@@ -34,7 +34,7 @@ database:
     ## -- Init container image repository
     repository: mongo
     ## -- Init container image tag
-    tag: "7.0"
+    tag: "7.0-jammy"
     ## -- Init container image pull policy
     pullPolicy: IfNotPresent
   ## -- Credentials for the UniFi database user
