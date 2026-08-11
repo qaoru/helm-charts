@@ -3,7 +3,7 @@ apiVersion: v2
 type: application
 name: unifi
 description: The unifi software is a powerful, enterprise wireless software engine ideal for high-density client deployments requiring low latency and high uptime performance.
-version: 1.0.4
+version: 1.0.5
 appVersion: 10.5.67-ls141
 home: https://github.com/qaoru/unifi-helm-chart
 icon: https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/ubiquiti-unifi.svg
