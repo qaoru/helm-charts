@@ -3,7 +3,7 @@ apiVersion: v2
 type: application
 name: unifi
 description: The unifi software is a powerful, enterprise wireless software engine ideal for high-density client deployments requiring low latency and high uptime performance.
-version: 1.0.5
+version: 1.1.0
 appVersion: 10.5.67-ls141
 home: https://github.com/qaoru/unifi-helm-chart
 icon: https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/ubiquiti-unifi.svg
@@ -32,3 +32,8 @@ annotations:
       image: linuxserver/unifi-network-application:10.3.58-ls128
     - name: mongo-init
       image: mongo:7.0
+dependencies:
+  - condition: metrics.enabled
+    name: unpoller
+    repository: https://unpoller.github.io/helm-chart
+    version: 2.4.0
