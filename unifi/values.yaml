@@ -279,3 +279,28 @@ affinity: {}
 extraVolumeMounts: []
 # -- Extra volumes for the pod
 extraVolumes: []
+
+metrics:
+  enabled: false
+
+  # generate monitoring credentials, you must configure it after pod bootstrap
+  unifiCredentials:
+    generate: true
+    secretName: "unifi-metrics-credentials"
+    usernameKey: "username"
+    passwordKey: "password"
+
+unpoller:
+  extraEnv:
+  - name: UP_UNIFI_CONTROLLER_0_URL
+    value: "https://unifiunpoller:8443"
+  - name: UP_UNIFI_CONTROLLER_0_USER
+    valueFrom:
+      secretKeyRef:
+        name: unifi-metrics-credentials
+        key: username
+  - name: UP_UNIFI_CONTROLLER_0_PASS
+    valueFrom:
+      secretKeyRef:
+        name: unifi-metrics-credentials
+        key: password
