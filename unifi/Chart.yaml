@@ -29,7 +29,7 @@ annotations:
       email: paul@qaoru.fr
   artifacthub.io/images: |
     - name: unifi
-      image: linuxserver/unifi-network-application:10.3.58-ls128
+      image: linuxserver/unifi-network-application:10.5.67-ls141
     - name: mongo-init
       image: mongo:7.0
 dependencies:
