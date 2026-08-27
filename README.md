@@ -2,7 +2,7 @@
 
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/qaoru/unifi-helm-chart?style=flat-square)](https://github.com/qaoru/unifi-helm-chart/releases)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue?style=flat-square)](./LICENSE)
-[![Chart version](https://img.shields.io/badge/chart%20version-1.0.4-informational?style=flat-square)](https://github.com/qaoru/unifi-helm-chart/releases/tag/v1.0.4)
+[![Chart version](https://img.shields.io/badge/chart%20version-1.1.0-informational?style=flat-square)](https://github.com/qaoru/unifi-helm-chart/releases/tag/v1.1.0)
 
 A Helm chart for deploying the [UniFi Network Application](https://ui.com) as a
 StatefulSet on Kubernetes. It runs the
@@ -32,7 +32,7 @@ container.
 Install the latest published version from the GitHub Container Registry:
 
 ```bash
-helm install unifi oci://ghcr.io/qaoru/helm-charts/unifi --version 1.0.4 \
+helm install unifi oci://ghcr.io/qaoru/helm-charts/unifi --version 1.1.0 \
   --set database.host=<your-mongodb-host> \
   --set database.credentials.generate=true
 ```
@@ -78,6 +78,31 @@ values or the template:
 ```bash
 helm-docs unifi/
 ```
+
+A [pre-commit](https://pre-commit.com) hook is provided to keep the chart docs
+in sync locally (requires Docker):
+
+```bash
+pip install pre-commit
+pre-commit install
+```
+
+## Releasing
+
+Releases are automated via the `Release Chart` GitHub Actions workflow
+(`.github/workflows/release.yaml`):
+
+1. **On push to `main`** — if the `version` in `unifi/Chart.yaml` changed
+   compared to the previous state of the branch, the workflow regenerates
+   `unifi/README.md` with helm-docs, bumps the hardcoded version references in
+   the top-level `README.md`, commits the docs, and creates the `v<version>`
+   tag.
+2. **On the resulting tag** (or a manually pushed `v*.*.*` tag) — the chart is
+   linted, packaged, pushed and Cosign-signed to GHCR, Artifact Hub metadata is
+   published, and a GitHub Release with auto-generated notes is created.
+
+So the only manual step to cut a release is to bump `version` (and `appVersion`
+as needed) in `unifi/Chart.yaml` and merge to `main`.
 
 ## Contributing
 

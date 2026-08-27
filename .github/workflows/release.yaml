@@ -13,13 +13,69 @@ permissions:
   id-token: write
 
 jobs:
+  # On a push to main, detect whether the chart version in unifi/Chart.yaml
+  # changed compared to the previous state of the branch. We use this to drive
+  # the automated "tag + release on version bump" flow.
+  detect:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.new }}
+      changed: ${{ steps.ver.outputs.changed }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect chart version change
+        id: ver
+        run: |
+          set -euo pipefail
+          NEW="$(grep '^version:' unifi/Chart.yaml | awk '{print $2}')"
+          BEFORE="${{ github.event.before }}"
+          CHANGED="false"
+          # On the very first push to main, github.event.before is all zeros.
+          if [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ]; then
+            PREV="$(git show "${BEFORE}:unifi/Chart.yaml" 2>/dev/null | grep '^version:' | awk '{print $2}' || true)"
+            if [ -n "$PREV" ] && [ "$NEW" = "$PREV" ]; then
+              CHANGED="false"
+            else
+              CHANGED="true"
+            fi
+          else
+            CHANGED="true"
+          fi
+          echo "new=${NEW}"        >> "$GITHUB_OUTPUT"
+          echo "changed=${CHANGED}" >> "$GITHUB_OUTPUT"
+          echo "Detected version=${NEW}, changed=${CHANGED}"
+
+  # Release job runs either:
+  #   - after a push to main where the chart version bumped (auto-tag flow), or
+  #   - on a manually pushed v*.*.* tag (existing manual release flow).
   release:
+    needs: detect
+    if: |
+      always() &&
+      ((needs.detect.result == 'success' && needs.detect.outputs.changed == 'true') ||
+       startsWith(github.ref, 'refs/tags/'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git for bot commits
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Read chart version
+        id: chart
+        run: |
+          echo "version=$(grep '^version:' unifi/Chart.yaml | awk '{print $2}')" >> "$GITHUB_OUTPUT"
 
       - name: Install Helm
         uses: azure/setup-helm@v4
@@ -34,6 +90,17 @@ jobs:
         with:
           version: 1.3.3
 
+      - name: Install helm-docs
+        env:
+          HELM_DOCS_VERSION: v1.14.2
+        run: |
+          set -euo pipefail
+          curl -fsSL -o /tmp/helm-docs.tar.gz \
+            "https://github.com/norwoodj/helm-docs/releases/download/${HELM_DOCS_VERSION}/helm-docs_${HELM_DOCS_VERSION#v}_Linux_x86_64.tar.gz"
+          tar -xzf /tmp/helm-docs.tar.gz -C /tmp helm-docs
+          sudo install -m 0755 /tmp/helm-docs /usr/local/bin/helm-docs
+          helm-docs --version
+
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -41,6 +108,41 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # --- Auto-tag flow only (push to main with a version bump) -------------
+      # Regenerate the chart README from README.md.gotmpl + values.yaml and
+      # bump the hardcoded version references in the top-level README, then
+      # commit and create the v<version> tag pointing at that commit.
+      - name: Regenerate chart README and bump top-level README versions
+        if: github.ref == 'refs/heads/main'
+        run: |
+          set -euo pipefail
+          CHART_VERSION="${{ steps.chart.outputs.version }}"
+          helm-docs unifi/
+          # Keep the hardcoded version references in README.md in sync with
+          # Chart.yaml: the chart-version badge, the `--version` in the install
+          # command, and the releases/tag/vX link.
+          sed -i -E \
+            -e "s#chart%20version-[0-9][0-9.]*-informational#chart%20version-${CHART_VERSION}-informational#" \
+            -e "s#--version [0-9][0-9.]*#--version ${CHART_VERSION}#g" \
+            -e "s#releases/tag/v[0-9][0-9.]*#releases/tag/v${CHART_VERSION}#g" \
+            README.md
+
+      - name: Commit regenerated docs and create version tag
+        if: github.ref == 'refs/heads/main'
+        run: |
+          set -euo pipefail
+          CHART_VERSION="${{ steps.chart.outputs.version }}"
+          if ! git diff --quiet -- unifi/README.md README.md; then
+            git add unifi/README.md README.md
+            git commit -m "docs(): regenerate README for v${CHART_VERSION}"
+            git push
+          fi
+          if ! git ls-remote --exit-code --tags origin "refs/tags/v${CHART_VERSION}" >/dev/null 2>&1; then
+            git tag "v${CHART_VERSION}"
+            git push origin "v${CHART_VERSION}"
+          fi
+
+      # --- Build, publish, sign, release ------------------------------------
       - name: Build Chart Dependencies
         run: helm dependency update unifi/
 
@@ -51,20 +153,17 @@ jobs:
         run: helm package unifi/ --destination ./chart-packages
 
       - name: Push Chart to GHCR
-        if: startsWith(github.ref, 'refs/tags/')
         run: |
-          CHART_VERSION=$(grep "^version:" unifi/Chart.yaml | awk '{print $2}')
+          CHART_VERSION="${{ steps.chart.outputs.version }}"
           helm push "./chart-packages/unifi-${CHART_VERSION}.tgz" oci://ghcr.io/qaoru/helm-charts
 
       - name: Sign Chart with Cosign
-        if: startsWith(github.ref, 'refs/tags/')
         run: |
-          CHART_VERSION=$(grep "^version:" unifi/Chart.yaml | awk '{print $2}')
+          CHART_VERSION="${{ steps.chart.outputs.version }}"
           CHART_REF="ghcr.io/qaoru/helm-charts/unifi:${CHART_VERSION}"
           cosign sign --yes "${CHART_REF}"
 
       - name: Publish Artifact Hub repository metadata
-        if: startsWith(github.ref, 'refs/tags/')
         run: |
           oras push \
             ghcr.io/qaoru/helm-charts/unifi:artifacthub.io \
@@ -72,9 +171,9 @@ jobs:
             artifacthub-repo.yml:application/vnd.cncf.artifacthub.repository-metadata.layer.v1.yaml
 
       - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.chart.outputs.version }}
           files: |
             ./chart-packages/unifi-*.tgz
           generate_release_notes: true
