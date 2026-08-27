@@ -92,17 +92,22 @@ pre-commit install
 Releases are automated via the `Release Chart` GitHub Actions workflow
 (`.github/workflows/release.yaml`):
 
-1. **On push to `main`** — if the `version` in `unifi/Chart.yaml` changed
-   compared to the previous state of the branch, the workflow regenerates
-   `unifi/README.md` with helm-docs, bumps the hardcoded version references in
-   the top-level `README.md`, commits the docs, and creates the `v<version>`
-   tag.
+1. **On push to `main`** — if the `version` and/or `appVersion` in
+   `unifi/Chart.yaml` changed compared to the previous state of the branch, the
+   workflow regenerates `unifi/README.md` with helm-docs, bumps the hardcoded
+   version references in the top-level `README.md`, and commits the docs. If
+   only `appVersion` changed (e.g. a Renovate image-update PR) without a
+   matching `version` bump, it also auto-bumps the chart patch `version` and
+   adds an Artifact Hub changelog entry. It then creates the `v<version>` tag.
 2. **On the resulting tag** (or a manually pushed `v*.*.*` tag) — the chart is
    linted, packaged, pushed and Cosign-signed to GHCR, Artifact Hub metadata is
    published, and a GitHub Release with auto-generated notes is created.
 
 So the only manual step to cut a release is to bump `version` (and `appVersion`
-as needed) in `unifi/Chart.yaml` and merge to `main`.
+as needed) in `unifi/Chart.yaml` and merge to `main`. Image-only updates are
+handled automatically: [Renovate](./renovate.json) opens a PR bumping
+`appVersion` + the Artifact Hub image annotation, and merging it triggers a
+patch release.
 
 ## Contributing
 

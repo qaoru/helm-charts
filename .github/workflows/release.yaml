@@ -13,14 +13,18 @@ permissions:
   id-token: write
 
 jobs:
-  # On a push to main, detect whether the chart version in unifi/Chart.yaml
-  # changed compared to the previous state of the branch. We use this to drive
-  # the automated "tag + release on version bump" flow.
+  # On a push to main, detect whether the chart version and/or the appVersion
+  # (the UniFi image tag) in unifi/Chart.yaml changed compared to the previous
+  # state of the branch. A change to either triggers a release. An appVersion
+  # change without a chart version change triggers an automatic patch version
+  # bump in the release job (so image updates from Renovate cut a release).
   detect:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.ver.outputs.new }}
+      version: ${{ steps.ver.outputs.new_version }}
+      version_changed: ${{ steps.ver.outputs.version_changed }}
+      appversion_changed: ${{ steps.ver.outputs.appversion_changed }}
       changed: ${{ steps.ver.outputs.changed }}
     steps:
       - name: Checkout
@@ -28,30 +32,35 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Detect chart version change
+      - name: Detect chart version / appVersion change
         id: ver
         run: |
           set -euo pipefail
-          NEW="$(grep '^version:' unifi/Chart.yaml | awk '{print $2}')"
+          NEW_VERSION="$(grep '^version:' unifi/Chart.yaml | awk '{print $2}')"
+          NEW_APPVERSION="$(grep '^appVersion:' unifi/Chart.yaml | awk '{print $2}')"
           BEFORE="${{ github.event.before }}"
-          CHANGED="false"
+          VERSION_CHANGED=false
+          APPVERSION_CHANGED=false
           # On the very first push to main, github.event.before is all zeros.
           if [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ]; then
-            PREV="$(git show "${BEFORE}:unifi/Chart.yaml" 2>/dev/null | grep '^version:' | awk '{print $2}' || true)"
-            if [ -n "$PREV" ] && [ "$NEW" = "$PREV" ]; then
-              CHANGED="false"
-            else
-              CHANGED="true"
-            fi
+            PREV_VERSION="$(git show "${BEFORE}:unifi/Chart.yaml" 2>/dev/null | grep '^version:' | awk '{print $2}' || true)"
+            PREV_APPVERSION="$(git show "${BEFORE}:unifi/Chart.yaml" 2>/dev/null | grep '^appVersion:' | awk '{print $2}' || true)"
+            [ "$NEW_VERSION"    != "$PREV_VERSION"    ] && VERSION_CHANGED=true || true
+            [ "$NEW_APPVERSION" != "$PREV_APPVERSION" ] && APPVERSION_CHANGED=true || true
           else
-            CHANGED="true"
+            VERSION_CHANGED=true
+            APPVERSION_CHANGED=true
           fi
-          echo "new=${NEW}"        >> "$GITHUB_OUTPUT"
-          echo "changed=${CHANGED}" >> "$GITHUB_OUTPUT"
-          echo "Detected version=${NEW}, changed=${CHANGED}"
+          CHANGED=false
+          { [ "$VERSION_CHANGED" = true ] || [ "$APPVERSION_CHANGED" = true ]; } && CHANGED=true
+          echo "new_version=${NEW_VERSION}"         >> "$GITHUB_OUTPUT"
+          echo "version_changed=${VERSION_CHANGED}"   >> "$GITHUB_OUTPUT"
+          echo "appversion_changed=${APPVERSION_CHANGED}" >> "$GITHUB_OUTPUT"
+          echo "changed=${CHANGED}"                  >> "$GITHUB_OUTPUT"
+          echo "version=${NEW_VERSION} version_changed=${VERSION_CHANGED} appversion_changed=${APPVERSION_CHANGED} changed=${CHANGED}"
 
   # Release job runs either:
-  #   - after a push to main where the chart version bumped (auto-tag flow), or
+  #   - after a push to main where the chart version and/or appVersion bumped, or
   #   - on a manually pushed v*.*.* tag (existing manual release flow).
   release:
     needs: detect
@@ -71,11 +80,6 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-      - name: Read chart version
-        id: chart
-        run: |
-          echo "version=$(grep '^version:' unifi/Chart.yaml | awk '{print $2}')" >> "$GITHUB_OUTPUT"
 
       - name: Install Helm
         uses: azure/setup-helm@v4
@@ -108,7 +112,41 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # --- Auto-tag flow only (push to main with a version bump) -------------
+      # --- Auto-tag flow only (push to main) --------------------------------
+      # If the UniFi image (appVersion) was updated without a matching chart
+      # version bump (e.g. a Renovate image-update PR), bump the chart patch
+      # version and add an Artifact Hub changelog entry so the release workflow
+      # cuts a new release for the image update.
+      - name: Auto-bump chart version on image update
+        if: github.ref == 'refs/heads/main' && needs.detect.outputs.appversion_changed == 'true' && needs.detect.outputs.version_changed == 'false'
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import re
+          path = 'unifi/Chart.yaml'
+          text = open(path).read()
+          m = re.search(r'^version:\s*(\d+)\.(\d+)\.(\d+)', text, re.M)
+          if not m:
+              raise SystemExit('could not parse chart version')
+          major, minor, patch = int(m.group(1)), int(m.group(2)), int(m.group(3))
+          new_version = f'{major}.{minor}.{patch + 1}'
+          text = re.sub(r'^version:.*$', f'version: {new_version}', text, count=1, flags=re.M)
+          am = re.search(r'^appVersion:\s*"?([^\s"]+)"?', text, re.M)
+          appver = am.group(1)
+          new_body = f'    - kind: changed\n      description: Update unifi image to {appver}\n'
+          text = re.sub(
+              r'(  artifacthub\.io/changes:\s*\|\n)(?:    .*\n)+',
+              lambda mb: mb.group(1) + new_body,
+              text, count=1)
+          open(path, 'w').write(text)
+          print(f'bumped chart version to {new_version} for unifi image {appver}')
+          PY
+
+      - name: Read final chart version
+        id: rel
+        run: |
+          echo "version=$(grep '^version:' unifi/Chart.yaml | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+
       # Regenerate the chart README from README.md.gotmpl + values.yaml and
       # bump the hardcoded version references in the top-level README, then
       # commit and create the v<version> tag pointing at that commit.
@@ -116,7 +154,7 @@ jobs:
         if: github.ref == 'refs/heads/main'
         run: |
           set -euo pipefail
-          CHART_VERSION="${{ steps.chart.outputs.version }}"
+          CHART_VERSION="${{ steps.rel.outputs.version }}"
           helm-docs unifi/
           # Keep the hardcoded version references in README.md in sync with
           # Chart.yaml: the chart-version badge, the `--version` in the install
@@ -127,14 +165,14 @@ jobs:
             -e "s#releases/tag/v[0-9][0-9.]*#releases/tag/v${CHART_VERSION}#g" \
             README.md
 
-      - name: Commit regenerated docs and create version tag
+      - name: Commit release prep and create version tag
         if: github.ref == 'refs/heads/main'
         run: |
           set -euo pipefail
-          CHART_VERSION="${{ steps.chart.outputs.version }}"
-          if ! git diff --quiet -- unifi/README.md README.md; then
-            git add unifi/README.md README.md
-            git commit -m "docs(): regenerate README for v${CHART_VERSION}"
+          CHART_VERSION="${{ steps.rel.outputs.version }}"
+          if ! git diff --quiet -- unifi/Chart.yaml unifi/README.md README.md; then
+            git add unifi/Chart.yaml unifi/README.md README.md
+            git commit -m "release(): prepare v${CHART_VERSION}"
             git push
           fi
           if ! git ls-remote --exit-code --tags origin "refs/tags/v${CHART_VERSION}" >/dev/null 2>&1; then
@@ -154,12 +192,12 @@ jobs:
 
       - name: Push Chart to GHCR
         run: |
-          CHART_VERSION="${{ steps.chart.outputs.version }}"
+          CHART_VERSION="${{ steps.rel.outputs.version }}"
           helm push "./chart-packages/unifi-${CHART_VERSION}.tgz" oci://ghcr.io/qaoru/helm-charts
 
       - name: Sign Chart with Cosign
         run: |
-          CHART_VERSION="${{ steps.chart.outputs.version }}"
+          CHART_VERSION="${{ steps.rel.outputs.version }}"
           CHART_REF="ghcr.io/qaoru/helm-charts/unifi:${CHART_VERSION}"
           cosign sign --yes "${CHART_REF}"
 
@@ -173,7 +211,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.chart.outputs.version }}
+          tag_name: v${{ steps.rel.outputs.version }}
           files: |
             ./chart-packages/unifi-*.tgz
           generate_release_notes: true
