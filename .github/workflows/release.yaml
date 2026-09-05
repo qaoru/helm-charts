@@ -380,6 +380,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+          # cr writes index.yaml via a temp file in --index-path's directory
+          # (default .cr-index/), so that directory must exist.
+          mkdir -p .cr-index
           cr index \
             --owner "${{ github.repository_owner }}" \
             --git-repo "${{ github.event.repository.name }}" \
