@@ -2,9 +2,13 @@
 
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue?style=flat-square)](./LICENSE)
 
-A collection of [Helm](https://helm.sh) charts published as
-Cosign-signed OCI artifacts to the GitHub Container Registry
-(`oci://ghcr.io/qaoru/helm-charts`).
+A collection of [Helm](https://helm.sh) charts published two ways:
+
+- **OCI** — Cosign-signed artifacts in the GitHub Container Registry:
+  `oci://ghcr.io/qaoru/helm-charts/<chart>`.
+- **HTTP(S)** — a classic Helm repository served via GitHub Pages at
+  <https://qaoru.github.io/helm-charts> (add it with `helm repo add`, see
+  [Install](#install) below).
 
 ## Charts
 
@@ -15,11 +19,31 @@ Cosign-signed OCI artifacts to the GitHub Container Registry
 
 ## Install
 
-Install the latest published version of a chart from GHCR, e.g. for `unifi`:
+Charts can be installed from either source.
+
+### OCI (GHCR)
+
+Install a specific version directly from the GitHub Container Registry, e.g.
+for `unifi`:
 
 ```bash
 helm install unifi oci://ghcr.io/qaoru/helm-charts/unifi --version 1.1.0
 ```
+
+### HTTP(S) repository (GitHub Pages)
+
+Add the repository once, then install/update charts by name:
+
+```bash
+helm repo add qaoru https://qaoru.github.io/helm-charts
+helm repo update
+helm install unifi qaoru/unifi --version 1.1.0
+```
+
+> The HTTP(S) repository requires GitHub Pages to be enabled on the
+> `gh-pages` branch (Settings → Pages → Source: Deploy from a branch →
+> `gh-pages` / root). The `index.yaml` is rebuilt automatically on each
+> release by the `Release Charts` workflow.
 
 See each chart's README for chart-specific prerequisites and values.
 
@@ -72,7 +96,9 @@ Releases are automated via the `Release Charts` GitHub Actions workflow
    chart is linted, packaged, pushed and Cosign-signed to
    `ghcr.io/qaoru/helm-charts/<chart>`, Artifact Hub repository metadata is
    published, and a GitHub Release named `<chart>-<version>` with auto-generated
-   notes is created.
+   notes is created. After all charts for a run are published, a final `pages`
+   job rebuilds `index.yaml` from the GitHub Releases and pushes it to the
+   `gh-pages` branch, updating the HTTP(S) Helm repository.
 
 So the only manual step to cut a release is to bump `version` (and `appVersion`
 as needed) in a chart's `Chart.yaml` and merge to `main`. Image-only updates are
