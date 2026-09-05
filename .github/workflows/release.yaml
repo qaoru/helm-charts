@@ -27,6 +27,7 @@ permissions:
   contents: write
   packages: write
   id-token: write
+  pages: write
 
 jobs:
   # On a push to main, detect every chart whose `version` and/or `appVersion`
@@ -295,3 +296,61 @@ jobs:
             fi
             echo "::endgroup::"
           done < /tmp/targets.txt
+
+  # Build and publish the classic HTTP(S) Helm repository index.yaml to the
+  # gh-pages branch, so charts are consumable via `helm repo add` as well as
+  # via OCI. The chart .tgz archives are already attached to the per-chart
+  # GitHub Releases by the release job above; `cr index` scans those releases,
+  # rebuilds index.yaml with URLs pointing at the release-asset tarballs, and
+  # commits it to gh-pages. GitHub Pages (enable once in repo Settings ->
+  # Pages -> Source: Deploy from a branch -> gh-pages / root) then serves
+  # index.yaml at https://<owner>.github.io/<repo>.
+  pages:
+    needs: release
+    if: always() && needs.release.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git for bot commits
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Ensure gh-pages branch exists
+        run: |
+          set -euo pipefail
+          if ! git ls-remote --exit-code --heads origin gh-pages >/dev/null 2>&1; then
+            git checkout --orphan gh-pages
+            git rm -rf . || true
+            printf '# Helm chart repository\n\nThis branch hosts the `index.yaml` for the HTTP(S) Helm repository.\nChart archives are served from the per-chart GitHub Releases.\n' > README.md
+            git add README.md
+            git commit -m "pages(): initialize gh-pages branch"
+            git push origin gh-pages
+          fi
+
+      - name: Install chart-releaser
+        env:
+          CR_VERSION: "1.8.1"
+        run: |
+          set -euo pipefail
+          curl -fsSL -o /tmp/cr.tar.gz \
+            "https://github.com/helm/chart-releaser/releases/download/v${CR_VERSION}/chart-releaser_${CR_VERSION}_linux_amd64.tar.gz"
+          tar -xzf /tmp/cr.tar.gz -C /tmp cr
+          sudo install -m 0755 /tmp/cr /usr/local/bin/cr
+          cr version
+
+      - name: Rebuild and push Helm repo index
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          cr index \
+            --owner "${{ github.repository_owner }}" \
+            --git-repo "${{ github.event.repository.name }}" \
+            --token "${GH_TOKEN}" \
+            --push
