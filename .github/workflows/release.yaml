@@ -140,7 +140,7 @@ jobs:
           version: v3.14.0
 
       - name: Install Cosign
-        uses: sigstore/cosign-installer@v3.5.0
+        uses: sigstore/cosign-installer@v3.10.1
 
       - name: Install oras
         uses: oras-project/setup-oras@v2
