@@ -1,0 +1,86 @@
+apiVersion: v1
+entries:
+  open-terminal:
+  - annotations:
+      artifacthub.io/changes: |
+        - kind: added
+          description: Initial release of the open-terminal chart, with an embedded optional CiliumNetworkPolicy for air-gapped isolation.
+      artifacthub.io/images: |-
+        - name: open-terminal
+          image: ghcr.io/open-webui/open-terminal:0.12.3-slim
+      artifacthub.io/links: |
+        - name: Open Terminal (upstream)
+          url: https://github.com/open-webui/open-terminal
+        - name: Source repository
+          url: https://github.com/qaoru/helm-charts/tree/main/open-terminal
+      artifacthub.io/maintainers: |
+        - name: qaoru
+          email: paul@qaoru.fr
+    apiVersion: v2
+    appVersion: 0.12.3-slim
+    created: "2026-09-05T15:58:23.292894279Z"
+    description: Single Open Terminal instance for Open WebUI, the agent execution
+      sandbox, with optional Cilium air-gapped network isolation.
+    digest: b5177ce08285fd15a8f6b9cada6f91ec6a50d0ec25c878f47a37a29ed1109e6e
+    home: https://github.com/qaoru/helm-charts/tree/main/open-terminal
+    icon: https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/open-webui.svg
+    keywords:
+    - open-webui
+    - open-terminal
+    - agent
+    - sandbox
+    - terminal
+    maintainers:
+    - email: paul@qaoru.fr
+      name: qaoru
+    name: open-terminal
+    type: application
+    urls:
+    - https://github.com/qaoru/helm-charts/releases/download/open-terminal-0.1.1/open-terminal-0.1.1.tgz
+    version: 0.1.1
+  unifi:
+  - annotations:
+      artifacthub.io/changes: |
+        - kind: changed
+          description: Update unifi image to 10.6.101-ls144
+      artifacthub.io/images: |
+        - name: unifi
+          image: linuxserver/unifi-network-application:10.6.101-ls144
+        - name: mongo-init
+          image: mongo:7.0
+      artifacthub.io/links: |
+        - name: UniFi Network Application (linuxserver image)
+          url: https://hub.docker.com/r/linuxserver/unifi-network-application
+        - name: Source repository
+          url: https://github.com/qaoru/helm-charts/tree/main/unifi
+      artifacthub.io/maintainers: |
+        - name: qaoru
+          email: paul@qaoru.fr
+    apiVersion: v2
+    appVersion: 10.6.101-ls144
+    created: "2026-09-05T15:58:23.479161387Z"
+    dependencies:
+    - condition: metrics.enabled
+      name: unpoller
+      repository: https://unpoller.github.io/helm-chart
+      version: 2.4.0
+    description: The unifi software is a powerful, enterprise wireless software engine
+      ideal for high-density client deployments requiring low latency and high uptime
+      performance.
+    digest: b960e6927a8295df706f44a4abb51e2284698c288a835cd4e20acfe11c3a88aa
+    home: https://github.com/qaoru/helm-charts/tree/main/unifi
+    icon: https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/ubiquiti-unifi.svg
+    keywords:
+    - network
+    - unifi
+    - ubiquiti
+    - controller
+    maintainers:
+    - email: paul@qaoru.fr
+      name: qaoru
+    name: unifi
+    type: application
+    urls:
+    - https://github.com/qaoru/helm-charts/releases/download/unifi-1.1.1/unifi-1.1.1.tgz
+    version: 1.1.1
+generated: "2026-09-05T15:58:23.479204337Z"
