@@ -1,10 +1,10 @@
 # See https://pre-commit.com for hook docs.
 # Install once:  pip install pre-commit && pre-commit install
 #
-# Keeps the chart README (unifi/README.md) in sync with values.yaml and
-# README.md.gotmpl using helm-docs. The `helm-docs-container` hook runs
-# helm-docs from the jnorwood/helm-docs Docker image, so Docker is the only
-# local requirement. (CI regenerates docs on release regardless.)
+# Keeps each chart's README (e.g. unifi/README.md, open-terminal/README.md) in
+# sync with its values.yaml and README.md.gotmpl using helm-docs. The
+# `helm-docs-container` hook scans every chart directory recursively, so Docker
+# is the only local requirement. (CI regenerates docs on release regardless.)
 repos:
   - repo: https://github.com/norwoodj/helm-docs
     rev: v1.14.2

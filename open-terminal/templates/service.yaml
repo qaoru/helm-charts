@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "open-terminal.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "open-terminal.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "open-terminal.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+      protocol: TCP

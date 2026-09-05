@@ -1,86 +1,55 @@
-# unifi-helm-chart
+# helm-charts
 
-[![GitHub release (latest by date)](https://img.shields.io/github/v/release/qaoru/unifi-helm-chart?style=flat-square)](https://github.com/qaoru/unifi-helm-chart/releases)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue?style=flat-square)](./LICENSE)
-[![Chart version](https://img.shields.io/badge/chart%20version-1.1.0-informational?style=flat-square)](https://github.com/qaoru/unifi-helm-chart/releases/tag/v1.1.0)
 
-A Helm chart for deploying the [UniFi Network Application](https://ui.com) as a
-StatefulSet on Kubernetes. It runs the
-[`linuxserver/unifi-network-application`](https://hub.docker.com/r/linuxserver/unifi-network-application)
-container and bootstraps the required MongoDB user/databases via an init
-container.
+A collection of [Helm](https://helm.sh) charts published as
+Cosign-signed OCI artifacts to the GitHub Container Registry
+(`oci://ghcr.io/qaoru/helm-charts`).
 
-## Highlights
+## Charts
 
-- **StatefulSet** with persistent `/config` storage (`volumeClaimTemplate`,
-  default 5Gi), or `emptyDir` when persistence is disabled.
-- **MongoDB bootstrap** — an init container (`mongo`) creates the UniFi database
-  user and grants `dbOwner` on `unifi`, `unifi_stat`, and `unifi_audit`.
-- **Two services** — an internal `ClusterIP` (HTTPS UI only, on by default) and
-  an optional public `LoadBalancer` exposing all UniFi ports (inform, guest
-  HTTP/HTTPS, speedtest, STUN, discovery, syslog).
-- **Optional ingress** routing to the internal service on port 8443.
-- **Network policies** — your choice of standard Kubernetes `NetworkPolicy` or
-  `CiliumNetworkPolicy`, with sensible defaults for UniFi's required egress.
-- **Service account** with `automountServiceAccountToken: false`.
-- **Secret management** — optionally generate the UniFi DB credentials secret
-  with a random password; admin credentials supplied via an existing secret.
-- **Cosign-signed OCI releases** published to GHCR via GitHub Actions.
+| Chart | Description | README |
+| --- | --- | --- |
+| [unifi](./unifi) | UniFi Network Application (linuxserver image) as a StatefulSet with MongoDB bootstrap, dual services, optional ingress, and network policies. | [unifi/README.md](./unifi/README.md) |
+| [open-terminal](./open-terminal) | Single [Open Terminal](https://github.com/open-webui/open-terminal) instance (the agent execution sandbox for Open WebUI) with optional Cilium air-gapped network isolation. | [open-terminal/README.md](./open-terminal/README.md) |
 
-## Quick start
+## Install
 
-Install the latest published version from the GitHub Container Registry:
+Install the latest published version of a chart from GHCR, e.g. for `unifi`:
 
 ```bash
-helm install unifi oci://ghcr.io/qaoru/helm-charts/unifi --version 1.1.0 \
-  --set database.host=<your-mongodb-host> \
-  --set database.credentials.generate=true
+helm install unifi oci://ghcr.io/qaoru/helm-charts/unifi --version 1.1.0
 ```
 
-You'll also need a secret with MongoDB **admin** credentials (used by the init
-container to create the UniFi database user):
-
-```bash
-kubectl create secret generic unifi-db-credentials \
-  --from-literal=admin-username=<your-mongo-admin-user> \
-  --from-literal=admin-password=<your-mongo-admin-password>
-```
-
-For the full list of values (services, ingress, network policies, probes,
-resources, security contexts, etc.), see the
-[chart README](./unifi/README.md).
-
-## Prerequisites
-
-- Kubernetes >= 1.21
-- Helm >= 3.7 (OCI support)
-- A running MongoDB instance reachable from the cluster, with admin credentials
-  stored in a Kubernetes `Secret`
+See each chart's README for chart-specific prerequisites and values.
 
 ## Development
 
-Lint the chart:
+Lint a chart:
 
 ```bash
 helm lint unifi/
+helm lint open-terminal/
 ```
 
 Render templates locally:
 
 ```bash
 helm template unifi ./unifi --namespace default
+helm template open-terminal ./open-terminal --namespace default
 ```
 
-The chart's `README.md` is generated from `README.md.gotmpl` using
-[helm-docs](https://github.com/norwoodj/helm-docs). Regenerate it after editing
-values or the template:
+Each chart's `README.md` is generated from `README.md.gotmpl` using
+[helm-docs](https://github.com/norwoodj/helm-docs). Regenerate a chart's docs
+after editing its values or template:
 
 ```bash
 helm-docs unifi/
+helm-docs open-terminal/
 ```
 
-A [pre-commit](https://pre-commit.com) hook is provided to keep the chart docs
-in sync locally (requires Docker):
+A [pre-commit](https://pre-commit.com) hook is provided to keep chart docs in
+sync locally (requires Docker):
 
 ```bash
 pip install pre-commit
@@ -89,20 +58,27 @@ pre-commit install
 
 ## Releasing
 
-Releases are automated via the `Release Chart` GitHub Actions workflow
-(`.github/workflows/release.yaml`):
+Releases are automated via the `Release Charts` GitHub Actions workflow
+(`.github/workflows/release.yaml`), run **per chart**:
 
-1. **On push to `main`** — if the `version` in `unifi/Chart.yaml` changed
-   compared to the previous state of the branch, the workflow regenerates
-   `unifi/README.md` with helm-docs, bumps the hardcoded version references in
-   the top-level `README.md`, commits the docs, and creates the `v<version>`
-   tag.
-2. **On the resulting tag** (or a manually pushed `v*.*.*` tag) — the chart is
-   linted, packaged, pushed and Cosign-signed to GHCR, Artifact Hub metadata is
-   published, and a GitHub Release with auto-generated notes is created.
+1. **On push to `main`** — for each chart whose `version` and/or `appVersion`
+   in `<chart>/Chart.yaml` changed compared to the previous state of the branch,
+   the workflow regenerates that chart's `README.md` with helm-docs and, if only
+   `appVersion` changed (e.g. a Renovate image-update PR) without a matching
+   `version` bump, auto-bumps the chart patch `version` and adds an Artifact Hub
+   changelog entry. It then creates the `<chart>-<version>` tag (e.g.
+   `open-terminal-0.1.1`).
+2. **On the resulting tag** (or a manually pushed `<chart>-<version>` tag) — the
+   chart is linted, packaged, pushed and Cosign-signed to
+   `ghcr.io/qaoru/helm-charts/<chart>`, Artifact Hub repository metadata is
+   published, and a GitHub Release named `<chart>-<version>` with auto-generated
+   notes is created.
 
 So the only manual step to cut a release is to bump `version` (and `appVersion`
-as needed) in `unifi/Chart.yaml` and merge to `main`.
+as needed) in a chart's `Chart.yaml` and merge to `main`. Image-only updates are
+handled automatically: [Renovate](./renovate.json) opens a PR bumping
+`appVersion` + the Artifact Hub image annotation, and merging it triggers a
+patch release for that chart.
 
 ## Contributing
 

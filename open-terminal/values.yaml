@@ -1,0 +1,147 @@
+# Open Terminal -- the agent execution sandbox for Open WebUI.
+#
+# Open Terminal (ghcr.io/open-webui/open-terminal) is a remote shell the AI
+# drives from chat: it runs commands, manages files, and executes code. Because
+# that is real code running on behalf of a model, this chart deploys it with
+# isolation as the priority:
+#
+#   - slim image: no sudo, no runtime apt/pip/npm installs. The agent cannot
+#     install arbitrary packages or escalate; it works with what the image
+#     ships. The `:slim` variant tag is pinned via `appVersion` and kept slim
+#     by default. Use the floating `slim` or `latest` tag (much larger attack
+#     surface + sudo + Docker CLI) only if you need runtime package installs.
+#   - ephemeral workspace: an emptyDir at /home/user. Nothing persists across
+#     pod restarts -- no leftover data or secrets -- at the cost of losing work
+#     when the pod is reaped.
+#   - air-gapped network: an embedded CiliumNetworkPolicy (enabled by default)
+#     denies all egress and all ingress except the configured source -> :8000.
+#     The agent cannot reach the internet or any other in-cluster service.
+#   - dropped capabilities (all but CHOWN/SETUID/SETGID), no privilege
+#     escalation, seccomp.
+#
+# Open WebUI reaches this instance at http://open-terminal:8000 (the Service is
+# named after the chart, regardless of the release name, so the DNS name is
+# stable). The connection is added once by hand in the Open WebUI admin UI (NOT
+# via an env var -- with ENABLE_PERSISTENT_CONFIG on, TERMINAL_SERVER_CONNECTIONS
+# only seeds a fresh DB and is ignored on an already-running instance). The API
+# key is provisioned by the owner in an existing Secret (key `api-key`); this
+# chart only references it. See README.md for the one-time setup.
+#
+# The chart is namespace-agnostic: it deploys into `.Release.Namespace`. The
+# network policy defaults assume the Open WebUI deployment pattern (ingress from
+# the `open-webui` app in the release namespace); adjust `networkPolicy.ingress`
+# for a different source, or disable the policy entirely.
+
+# -- Number of pod replicas.
+replicaCount: 1
+
+# -- Container image. `tag` defaults to the chart `appVersion` (a pinned
+# `X.Y.Z-slim` variant tag, kept up to date by Renovate).
+image:
+  # -- Container image repository.
+  repository: ghcr.io/open-webui/open-terminal
+  # -- Container image tag (defaults to Chart appVersion).
+  tag: ~
+  # -- Image pull policy.
+  pullPolicy: IfNotPresent
+
+# -- Pod RuntimeClass (e.g. `kata` for a hardware-isolated VM with its own
+# kernel). Empty/omitted by default. See README.md "Hardened deployment" for the
+# kata setup.
+runtimeClassName: ""
+
+# -- Node selector for the pod. Empty/omitted by default. When using the `kata`
+# RuntimeClass, pin to nodes labeled `katacontainers.io/kata-runtime=true` (where
+# kata-deploy installed the runtime); a pod with `runtimeClassName: kata` can
+# fail container creation if it lands on a node without the runtime.
+nodeSelector: {}
+
+# -- API key shared with Open WebUI (bearer auth). The owner creates the Secret
+# (key `api-key`); this chart never holds the key value.
+apiKey:
+  # -- Existing Secret holding the API key.
+  existingSecret: open-terminal-api-key
+  # -- Key inside the Secret.
+  key: api-key
+
+# -- Container resource requests and limits.
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+
+# -- Ephemeral workspace: emptyDir mounted at /home/user. `size` is a soft cap
+# (sizeLimit triggers kubelet eviction when exceeded, not a hard quota). Nothing
+# persists across pod restarts.
+workspace:
+  # -- emptyDir sizeLimit for the workspace.
+  size: 1Gi
+
+# -- Pod security context. The slim image starts as root only so its
+# entrypoint can fix /home/user ownership, then drops to "user" (UID 1000) via
+# gosu with NO sudo. We therefore do NOT set runAsNonRoot here (it would break
+# the entrypoint's ownership fix / privilege drop). fsGroup: 1000 makes the
+# emptyDir group-writable by the app even before the entrypoint chown runs.
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+  fsGroup: 1000
+
+# -- Container security context.
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+    # gosu (the slim entrypoint's privilege drop) always calls setgroups +
+    # setgid + setuid to switch from root to UID 1000, so it needs CAP_SETGID
+    # and CAP_SETUID; CAP_CHOWN lets fix_home chown the workspace. These are
+    # only effective during the brief root entrypoint phase -- after `gosu
+    # exec` the app runs as UID 1000 with no effective caps (the binary has no
+    # file capabilities), so they do not weaken the running agent. Dropping all
+    # three reproduces the CrashLoop "failed switching to user: operation not
+    # permitted" seen on the kata runtime.
+    add:
+      - CHOWN
+      - SETUID
+      - SETGID
+  # Must stay false: the agent writes files and runs commands that create temp
+  # files across the filesystem, not only under /home/user.
+  readOnlyRootFilesystem: false
+
+# -- Open Terminal app env (beyond OPEN_TERMINAL_API_KEY, which comes from the
+# secret). host/port have NO env vars -- the app defaults to 0.0.0.0:8000,
+# which is what we want. Slim has no runtime package installs and we rely on
+# the Cilium egress default-deny for network isolation, so Open Terminal's own
+# in-container iptables egress firewall (which would need NET_ADMIN) is unused.
+env:
+  # -- UI hint only (does not restrict commands): report /home/user as the root.
+  OPEN_TERMINAL_FILE_BROWSER_ROOT: home
+
+# -- Embedded network isolation. Enabled by default with a Cilium egress
+# default-deny (air-gapped) and ingress limited to the configured source. The
+# agent can run commands, write files, and execute code, but cannot reach the
+# internet, exfiltrate data, or talk to any other in-cluster service. Reply
+# traffic for the allowed source -> :8000 flow is statefully permitted by
+# Cilium, so the proxy keeps working under egress default-deny. Kubelet
+# liveness/readiness probes on /health are auto-allowed by Cilium
+# (reserved:host / local-host ingress), so they need no rule here.
+networkPolicy:
+  # -- Enable the embedded network policy.
+  enabled: true
+  # -- Network policy flavor. Only `cilium` is implemented.
+  flavor: cilium
+  # -- Ingress rules: allow the configured source to reach the Open Terminal
+  # port.
+  ingress:
+    # -- Namespace of the allowed client pod (defaults to the release
+    # namespace when empty).
+    fromNamespace: ""
+    # -- `app.kubernetes.io/name` label of the allowed client pod. Defaults to
+    # `open-webui` (the Open WebUI deployment pattern).
+    fromName: open-webui
+    # -- Port the client reaches (Open Terminal listening port).
+    port: 8000
