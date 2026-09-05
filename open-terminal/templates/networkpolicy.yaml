@@ -1,0 +1,32 @@
+{{- if .Values.networkPolicy.enabled }}
+{{- if eq .Values.networkPolicy.flavor "cilium" }}
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "open-terminal.name" . }}-default-deny
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "open-terminal.labels" . | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      {{- include "open-terminal.selectorLabels" . | nindent 6 }}
+  enableDefaultDeny:
+    ingress: true
+    egress: true
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: {{ .Values.networkPolicy.ingress.fromNamespace | default .Release.Namespace | quote }}
+            app.kubernetes.io/name: {{ .Values.networkPolicy.ingress.fromName | quote }}
+      toPorts:
+        - ports:
+            - port: {{ .Values.networkPolicy.ingress.port | quote }}
+              protocol: TCP
+  # egress: intentionally none (air-gapped). To let the agent reach the network
+  # (e.g. pip/apt installs, outbound APIs), add egress rules here and, if the
+  # image lacks runtime package tooling, switch to a tag that supports it.
+{{- else }}
+{{- fail (printf "open-terminal: unsupported networkPolicy.flavor %q (only \"cilium\" is implemented)" .Values.networkPolicy.flavor) }}
+{{- end }}
+{{- end }}

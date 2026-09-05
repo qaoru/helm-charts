@@ -1,0 +1,33 @@
+---
+apiVersion: v2
+type: application
+name: open-terminal
+description: Single Open Terminal instance for Open WebUI, the agent execution sandbox, with optional Cilium air-gapped network isolation.
+version: 0.1.1
+appVersion: 0.12.3-slim
+home: https://github.com/qaoru/helm-charts/tree/main/open-terminal
+icon: https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/open-webui.svg
+maintainers:
+  - name: qaoru
+    email: paul@qaoru.fr
+keywords:
+  - open-webui
+  - open-terminal
+  - agent
+  - sandbox
+  - terminal
+annotations:
+  artifacthub.io/changes: |
+    - kind: added
+      description: Initial release of the open-terminal chart (ported from the local homelab chart), with an embedded optional CiliumNetworkPolicy for air-gapped isolation.
+  artifacthub.io/links: |
+    - name: Open Terminal (upstream)
+      url: https://github.com/open-webui/open-terminal
+    - name: Source repository
+      url: https://github.com/qaoru/helm-charts/tree/main/open-terminal
+  artifacthub.io/maintainers: |
+    - name: qaoru
+      email: paul@qaoru.fr
+  artifacthub.io/images: |
+    - name: open-terminal
+      image: ghcr.io/open-webui/open-terminal:0.12.3-slim

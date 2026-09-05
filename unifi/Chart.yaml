@@ -5,7 +5,7 @@ name: unifi
 description: The unifi software is a powerful, enterprise wireless software engine ideal for high-density client deployments requiring low latency and high uptime performance.
 version: 1.1.0
 appVersion: 10.5.67-ls141
-home: https://github.com/qaoru/unifi-helm-chart
+home: https://github.com/qaoru/helm-charts
 icon: https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/ubiquiti-unifi.svg
 maintainers:
   - name: qaoru
@@ -23,7 +23,7 @@ annotations:
     - name: UniFi Network Application (linuxserver image)
       url: https://hub.docker.com/r/linuxserver/unifi-network-application
     - name: Source repository
-      url: https://github.com/qaoru/unifi-helm-chart
+      url: https://github.com/qaoru/helm-charts/tree/main/unifi
   artifacthub.io/maintainers: |
     - name: qaoru
       email: paul@qaoru.fr
