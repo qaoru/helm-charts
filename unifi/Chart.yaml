@@ -3,7 +3,7 @@ apiVersion: v2
 type: application
 name: unifi
 description: The unifi software is a powerful, enterprise wireless software engine ideal for high-density client deployments requiring low latency and high uptime performance.
-version: 1.1.0
+version: 1.1.1
 appVersion: 10.6.101-ls144
 home: https://github.com/qaoru/helm-charts/tree/main/unifi
 icon: https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/ubiquiti-unifi.svg
@@ -17,8 +17,8 @@ keywords:
   - controller
 annotations:
   artifacthub.io/changes: |
-    - kind: added
-      description: Publish Artifact Hub repository metadata (artifacthub-repo.yml) to the OCI registry on release, enabling ownership claim and verified publisher
+    - kind: changed
+      description: Update unifi image to 10.6.101-ls144
   artifacthub.io/links: |
     - name: UniFi Network Application (linuxserver image)
       url: https://hub.docker.com/r/linuxserver/unifi-network-application
