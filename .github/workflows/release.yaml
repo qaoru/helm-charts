@@ -7,7 +7,21 @@ on:
     tags:
       # Per-chart release tags: <chart>-<version>, e.g. open-terminal-0.1.1,
       # unifi-1.2.0. The chart name is the prefix before the trailing -X.Y.Z.
+      # (Only manual/human tag pushes trigger this — tags pushed by this
+      # workflow via GITHUB_TOKEN do NOT re-trigger it, so the publish for
+      # push-to-main releases is done in the same job as the prep below.)
       - '*-*.*.*'
+  # Manual recovery / re-publish of an existing <chart>-<version> tag.
+  workflow_dispatch:
+    inputs:
+      chart:
+        description: Chart name (directory) to publish, e.g. unifi
+        required: true
+        type: string
+      version:
+        description: Chart version to publish, e.g. 1.1.1
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -19,7 +33,7 @@ jobs:
   # in <chart>/Chart.yaml changed compared to the previous state of the branch.
   # A change to either triggers a release for that chart. An appVersion change
   # without a chart version change triggers an automatic patch version bump in
-  # the release-prep job (so image updates from Renovate cut a release).
+  # the release job (so image updates from Renovate cut a release).
   detect:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
@@ -86,17 +100,27 @@ jobs:
           print(json.dumps(result, indent=2))
           PY
 
-  # Prepare releases for every changed chart: auto-bump the chart patch
-  # version when only appVersion changed (e.g. a Renovate image-update PR),
-  # regenerate each changed chart's README with helm-docs, then commit and push
-  # a <chart>-<version> tag per chart. The tag push triggers release-publish.
+  # Release job. Runs in three modes, all of which populate /tmp/targets.txt
+  # with one "<chart> <version>" line per chart to publish, then run the same
+  # publish loop:
   #
-  # Runs as a single looping job (not a matrix) so the commit + tag push is a
-  # single linear sequence — no concurrent git push races when several charts
-  # changed in the same push to main.
-  release-prep:
+  #   1. push-to-main with changed charts  — auto-bump (if only appVersion
+  #      changed), regenerate README with helm-docs, commit, push a
+  #      <chart>-<version> tag per chart, then publish. Publish happens in THIS
+  #      job because the GITHUB_TOKEN-pushed tag does not re-trigger the
+  #      workflow.
+  #   2. manual <chart>-<version> tag push — resolve chart + version from the
+  #      tag, then publish.
+  #   3. workflow_dispatch (recovery)      — publish the given chart + version.
+  release:
     needs: detect
-    if: needs.detect.result == 'success' && needs.detect.outputs.changed == 'true'
+    if: |
+      always() &&
+      (
+        (needs.detect.result == 'success' && needs.detect.outputs.changed == 'true') ||
+        startsWith(github.ref, 'refs/tags/') ||
+        github.event_name == 'workflow_dispatch'
+      )
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -110,6 +134,19 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3.5.0
+
+      - name: Install oras
+        uses: oras-project/setup-oras@v2
+        with:
+          version: 1.3.3
+
       - name: Install helm-docs
         env:
           HELM_DOCS_VERSION: v1.14.2
@@ -121,7 +158,19 @@ jobs:
           sudo install -m 0755 /tmp/helm-docs /usr/local/bin/helm-docs
           helm-docs --version
 
-      - name: Prepare changed charts
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # --- Mode 1: push-to-main prep -----------------------------------------
+      # Auto-bump, regen docs, commit, and push a <chart>-<version> tag per
+      # changed chart. Writes /tmp/targets.txt with the FINAL (post-bump)
+      # versions and /tmp/release_label.txt for the commit message.
+      - name: Prepare changed charts (push to main)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           CHARTS: ${{ needs.detect.outputs.charts }}
         run: |
@@ -130,7 +179,7 @@ jobs:
           import json, os, re, subprocess
 
           charts = json.loads(os.environ['CHARTS'])
-          tags = []
+          targets = []
           for entry in charts:
               c = entry['chart']
               path = f'{c}/Chart.yaml'
@@ -165,113 +214,84 @@ jobs:
 
               # Regenerate this chart's README from README.md.gotmpl + values.yaml.
               subprocess.run(['helm-docs', '--chart-to-generate', c], check=True)
-              tags.append(f'{c}-{version}')
+              targets.append((c, version))
 
-          with open('/tmp/tags.txt', 'w') as f:
-              for t in tags:
-                  f.write(t + '\n')
+          with open('/tmp/targets.txt', 'w') as f:
+              for c, v in targets:
+                  f.write(f'{c} {v}\n')
+          with open('/tmp/release_label.txt', 'w') as f:
+              f.write(', '.join(f'{c}-{v}' for c, v in targets))
           PY
 
-      - name: Commit release prep and create version tags
+      - name: Commit release prep and push version tags (push to main)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           set -euo pipefail
           # Stage every changed chart's Chart.yaml and README.md.
           git add -A -- '*/Chart.yaml' '*/README.md'
+          LABEL="$(cat /tmp/release_label.txt)"
           if ! git diff --quiet --cached; then
-            CHARTS="$(python3 -c "import json,os;print(', '.join(e['chart']+'-'+e['version'] for e in json.loads(os.environ['CHARTS'])))" 2>/dev/null || true)"
-            git commit -m "release(): prepare ${CHARTS}"
+            git commit -m "release(): prepare ${LABEL}"
             git push
           fi
           # Create and push a <chart>-<version> tag for each prepared chart.
-          while read -r TAG; do
-            [ -n "$TAG" ] || continue
+          while read -r CHART VERSION; do
+            [ -n "$CHART" ] || continue
+            TAG="${CHART}-${VERSION}"
             if ! git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
               git tag "$TAG"
               git push origin "$TAG"
             fi
-          done < /tmp/tags.txt
-        env:
-          CHARTS: ${{ needs.detect.outputs.charts }}
+          done < /tmp/targets.txt
 
-  # Publish a chart on its <chart>-<version> tag: lint, package, push and
-  # Cosign-sign to GHCR, publish Artifact Hub repository metadata, and create a
-  # GitHub Release named <chart>-<version>.
-  release-publish:
-    if: startsWith(github.ref, 'refs/tags/')
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Parse chart and version from tag
-        id: rel
+      # --- Mode 2: manual tag push -------------------------------------------
+      - name: Resolve target from tag (tag push)
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
           set -euo pipefail
           TAG="${GITHUB_REF#refs/tags/}"
           CHART="$(printf '%s' "$TAG" | sed -E 's/-[0-9]+\.[0-9]+\.[0-9]+$//')"
           VERSION="${TAG#${CHART}-}"
           [ -f "${CHART}/Chart.yaml" ] || { echo "chart ${CHART} not found"; exit 1; }
-          echo "chart=${CHART}"   >> "$GITHUB_OUTPUT"
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "tag=${TAG}"       >> "$GITHUB_OUTPUT"
-          echo "parsed chart=${CHART} version=${VERSION}"
+          printf '%s %s\n' "$CHART" "$VERSION" > /tmp/targets.txt
 
-      - name: Install Helm
-        uses: azure/setup-helm@v4
-        with:
-          version: v3.21.4
-
-      - name: Install Cosign
-        uses: sigstore/cosign-installer@v3.5.0
-
-      - name: Install oras
-        uses: oras-project/setup-oras@v2
-        with:
-          version: 1.3.3
-
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build Chart Dependencies
-        run: helm dependency update "${{ steps.rel.outputs.chart }}/"
-
-      - name: Lint Chart
-        run: helm lint "${{ steps.rel.outputs.chart }}/"
-
-      - name: Package Chart
-        run: helm package "${{ steps.rel.outputs.chart }}/" --destination ./chart-packages
-
-      - name: Push Chart to GHCR
+      # --- Mode 3: workflow_dispatch recovery --------------------------------
+      - name: Resolve target from inputs (workflow_dispatch)
+        if: github.event_name == 'workflow_dispatch'
         run: |
-          CHART="${{ steps.rel.outputs.chart }}"
-          VERSION="${{ steps.rel.outputs.version }}"
-          helm push "./chart-packages/${CHART}-${VERSION}.tgz" oci://ghcr.io/qaoru/helm-charts
+          set -euo pipefail
+          CHART="${{ inputs.chart }}"
+          VERSION="${{ inputs.version }}"
+          [ -f "${CHART}/Chart.yaml" ] || { echo "chart ${CHART} not found"; exit 1; }
+          printf '%s %s\n' "$CHART" "$VERSION" > /tmp/targets.txt
 
-      - name: Sign Chart with Cosign
+      # --- Publish loop (shared by all modes) --------------------------------
+      - name: Publish charts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          CHART="${{ steps.rel.outputs.chart }}"
-          VERSION="${{ steps.rel.outputs.version }}"
-          cosign sign --yes "ghcr.io/qaoru/helm-charts/${CHART}:${VERSION}"
-
-      - name: Publish Artifact Hub repository metadata
-        run: |
-          CHART="${{ steps.rel.outputs.chart }}"
-          oras push \
-            "ghcr.io/qaoru/helm-charts/${CHART}:artifacthub.io" \
-            --config /dev/null:application/vnd.cncf.artifacthub.config.v1+yaml \
-            artifacthub-repo.yml:application/vnd.cncf.artifacthub.repository-metadata.layer.v1.yaml
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.rel.outputs.tag }}
-          name: ${{ steps.rel.outputs.tag }}
-          files: |
-            ./chart-packages/${{ steps.rel.outputs.chart }}-*.tgz
-          generate_release_notes: true
+          set -euo pipefail
+          while read -r CHART VERSION; do
+            [ -n "$CHART" ] || continue
+            TAG="${CHART}-${VERSION}"
+            echo "::group::Publish ${TAG}"
+            helm dependency update "${CHART}/"
+            helm lint "${CHART}/"
+            helm package "${CHART}/" --destination ./chart-packages
+            helm push "./chart-packages/${CHART}-${VERSION}.tgz" oci://ghcr.io/qaoru/helm-charts
+            cosign sign --yes "ghcr.io/qaoru/helm-charts/${CHART}:${VERSION}"
+            oras push \
+              "ghcr.io/qaoru/helm-charts/${CHART}:artifacthub.io" \
+              --config /dev/null:application/vnd.cncf.artifacthub.config.v1+yaml \
+              artifacthub-repo.yml:application/vnd.cncf.artifacthub.repository-metadata.layer.v1.yaml
+            # GitHub Release (idempotent: skip if it already exists).
+            if gh release view "${TAG}" >/dev/null 2>&1; then
+              echo "release ${TAG} already exists, skipping creation"
+            else
+              gh release create "${TAG}" \
+                --title "${TAG}" \
+                --generate-notes \
+                "./chart-packages/${CHART}-${VERSION}.tgz"
+            fi
+            echo "::endgroup::"
+          done < /tmp/targets.txt
