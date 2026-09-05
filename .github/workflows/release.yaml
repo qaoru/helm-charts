@@ -221,7 +221,7 @@ jobs:
       - name: Install Helm
         uses: azure/setup-helm@v4
         with:
-          version: v3.14.0
+          version: v3.21.4
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3.5.0
