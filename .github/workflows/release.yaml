@@ -299,12 +299,20 @@ jobs:
 
   # Build and publish the classic HTTP(S) Helm repository index.yaml to the
   # gh-pages branch, so charts are consumable via `helm repo add` as well as
-  # via OCI. The chart .tgz archives are already attached to the per-chart
-  # GitHub Releases by the release job above; `cr index` scans those releases,
-  # rebuilds index.yaml with URLs pointing at the release-asset tarballs, and
-  # commits it to gh-pages. GitHub Pages (enable once in repo Settings ->
-  # Pages -> Source: Deploy from a branch -> gh-pages / root) then serves
-  # index.yaml at https://<owner>.github.io/<repo>.
+  # via OCI.
+  #
+  # NOTE: `cr index` does NOT scan GitHub Releases. It globs for local
+  # `*.tgz` files in --package-path (default .cr-release-packages/), reads
+  # each chart's Chart.yaml metadata, then calls the GitHub API to resolve
+  # the matching <chart>-<version> release and record its asset download URL
+  # in index.yaml. So the released .tgz archives must be present locally
+  # before `cr index` runs. We download them from every <chart>-<semver>
+  # release (skipping legacy `v*` tags, whose release name would not match
+  # cr's <name>-<version> template and would make `cr index` fail).
+  #
+  # GitHub Pages (enable once in repo Settings -> Pages -> Source: Deploy
+  # from a branch -> gh-pages / root) then serves index.yaml at
+  # https://<owner>.github.io/<repo>.
   pages:
     needs: release
     if: always() && needs.release.result == 'success'
@@ -343,6 +351,29 @@ jobs:
           tar -xzf /tmp/cr.tar.gz -C /tmp cr
           sudo install -m 0755 /tmp/cr /usr/local/bin/cr
           cr version
+
+      - name: Download released chart packages
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p .cr-release-packages
+          # Only <chart>-<semver> tags match cr's release-name template;
+          # legacy v* tags are skipped so `cr index` can resolve every
+          # downloaded package to an existing release.
+          gh release list --limit 200 --json tagName -q '.[].tagName' | while read -r TAG; do
+            if printf '%s' "$TAG" | grep -Eq '^[a-z][a-z0-9-]*-[0-9]+\.[0-9]+\.[0-9]+$'; then
+              echo "Downloading .tgz assets from release ${TAG}"
+              gh release download "$TAG" \
+                --dir .cr-release-packages \
+                --pattern '*.tgz' \
+                --clobber || true
+            else
+              echo "Skipping non-chart tag ${TAG}"
+            fi
+          done
+          echo "Downloaded packages:"
+          ls -la .cr-release-packages
 
       - name: Rebuild and push Helm repo index
         env:
