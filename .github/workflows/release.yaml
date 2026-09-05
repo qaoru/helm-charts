@@ -1,11 +1,13 @@
-name: Release Chart
+name: Release Charts
 
 on:
   push:
     branches:
       - main
     tags:
-      - 'v*.*.*'
+      # Per-chart release tags: <chart>-<version>, e.g. open-terminal-0.1.1,
+      # unifi-1.2.0. The chart name is the prefix before the trailing -X.Y.Z.
+      - '*-*.*.*'
 
 permissions:
   contents: write
@@ -13,61 +15,88 @@ permissions:
   id-token: write
 
 jobs:
-  # On a push to main, detect whether the chart version and/or the appVersion
-  # (the UniFi image tag) in unifi/Chart.yaml changed compared to the previous
-  # state of the branch. A change to either triggers a release. An appVersion
-  # change without a chart version change triggers an automatic patch version
-  # bump in the release job (so image updates from Renovate cut a release).
+  # On a push to main, detect every chart whose `version` and/or `appVersion`
+  # in <chart>/Chart.yaml changed compared to the previous state of the branch.
+  # A change to either triggers a release for that chart. An appVersion change
+  # without a chart version change triggers an automatic patch version bump in
+  # the release-prep job (so image updates from Renovate cut a release).
   detect:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.ver.outputs.new_version }}
-      version_changed: ${{ steps.ver.outputs.version_changed }}
-      appversion_changed: ${{ steps.ver.outputs.appversion_changed }}
-      changed: ${{ steps.ver.outputs.changed }}
+      charts: ${{ steps.detect.outputs.charts }}
+      changed: ${{ steps.detect.outputs.changed }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Detect chart version / appVersion change
-        id: ver
+      - name: Detect changed charts
+        id: detect
         run: |
           set -euo pipefail
-          NEW_VERSION="$(grep '^version:' unifi/Chart.yaml | awk '{print $2}')"
-          NEW_APPVERSION="$(grep '^appVersion:' unifi/Chart.yaml | awk '{print $2}')"
-          BEFORE="${{ github.event.before }}"
-          VERSION_CHANGED=false
-          APPVERSION_CHANGED=false
-          # On the very first push to main, github.event.before is all zeros.
-          if [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ]; then
-            PREV_VERSION="$(git show "${BEFORE}:unifi/Chart.yaml" 2>/dev/null | grep '^version:' | awk '{print $2}' || true)"
-            PREV_APPVERSION="$(git show "${BEFORE}:unifi/Chart.yaml" 2>/dev/null | grep '^appVersion:' | awk '{print $2}' || true)"
-            [ "$NEW_VERSION"    != "$PREV_VERSION"    ] && VERSION_CHANGED=true || true
-            [ "$NEW_APPVERSION" != "$PREV_APPVERSION" ] && APPVERSION_CHANGED=true || true
-          else
-            VERSION_CHANGED=true
-            APPVERSION_CHANGED=true
-          fi
-          CHANGED=false
-          { [ "$VERSION_CHANGED" = true ] || [ "$APPVERSION_CHANGED" = true ]; } && CHANGED=true
-          echo "new_version=${NEW_VERSION}"         >> "$GITHUB_OUTPUT"
-          echo "version_changed=${VERSION_CHANGED}"   >> "$GITHUB_OUTPUT"
-          echo "appversion_changed=${APPVERSION_CHANGED}" >> "$GITHUB_OUTPUT"
-          echo "changed=${CHANGED}"                  >> "$GITHUB_OUTPUT"
-          echo "version=${NEW_VERSION} version_changed=${VERSION_CHANGED} appversion_changed=${APPVERSION_CHANGED} changed=${CHANGED}"
+          export BEFORE="${{ github.event.before }}"
+          python3 - <<'PY'
+          import json, os, subprocess
+          before = os.environ['BEFORE']
+          zero = '0' * 40
 
-  # Release job runs either:
-  #   - after a push to main where the chart version and/or appVersion bumped, or
-  #   - on a manually pushed v*.*.* tag (existing manual release flow).
-  release:
+          charts = sorted(
+              d for d in os.listdir('.')
+              if os.path.isdir(d) and os.path.isfile(os.path.join(d, 'Chart.yaml'))
+          )
+
+          def read_field(text, key):
+              for line in text.splitlines():
+                  if line.startswith(key + ':'):
+                      return line.split(':', 1)[1].strip().strip('"')
+              return None
+
+          def show(path):
+              r = subprocess.run(['git', 'show', f'{before}:{path}'],
+                                 capture_output=True, text=True)
+              return r.stdout if r.returncode == 0 else None
+
+          result = []
+          for c in charts:
+              p = f'{c}/Chart.yaml'
+              cur = open(p).read()
+              new_ver = read_field(cur, 'version')
+              new_app = read_field(cur, 'appVersion')
+              if before and before != zero:
+                  prev = show(p)
+                  prev_ver = read_field(prev, 'version') if prev else None
+                  prev_app = read_field(prev, 'appVersion') if prev else None
+                  vchg = new_ver != prev_ver
+                  appchg = new_app != prev_app
+              else:
+                  vchg = appchg = True
+              if vchg or appchg:
+                  result.append({
+                      'chart': c,
+                      'version': new_ver,
+                      'version_changed': vchg,
+                      'appversion_changed': appchg,
+                  })
+
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f'charts={json.dumps(result)}\n')
+              f.write(f'changed={"true" if result else "false"}\n')
+          print(json.dumps(result, indent=2))
+          PY
+
+  # Prepare releases for every changed chart: auto-bump the chart patch
+  # version when only appVersion changed (e.g. a Renovate image-update PR),
+  # regenerate each changed chart's README with helm-docs, then commit and push
+  # a <chart>-<version> tag per chart. The tag push triggers release-publish.
+  #
+  # Runs as a single looping job (not a matrix) so the commit + tag push is a
+  # single linear sequence — no concurrent git push races when several charts
+  # changed in the same push to main.
+  release-prep:
     needs: detect
-    if: |
-      always() &&
-      ((needs.detect.result == 'success' && needs.detect.outputs.changed == 'true') ||
-       startsWith(github.ref, 'refs/tags/'))
+    if: needs.detect.result == 'success' && needs.detect.outputs.changed == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -80,6 +109,114 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Install helm-docs
+        env:
+          HELM_DOCS_VERSION: v1.14.2
+        run: |
+          set -euo pipefail
+          curl -fsSL -o /tmp/helm-docs.tar.gz \
+            "https://github.com/norwoodj/helm-docs/releases/download/${HELM_DOCS_VERSION}/helm-docs_${HELM_DOCS_VERSION#v}_Linux_x86_64.tar.gz"
+          tar -xzf /tmp/helm-docs.tar.gz -C /tmp helm-docs
+          sudo install -m 0755 /tmp/helm-docs /usr/local/bin/helm-docs
+          helm-docs --version
+
+      - name: Prepare changed charts
+        env:
+          CHARTS: ${{ needs.detect.outputs.charts }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, re, subprocess
+
+          charts = json.loads(os.environ['CHARTS'])
+          tags = []
+          for entry in charts:
+              c = entry['chart']
+              path = f'{c}/Chart.yaml'
+              text = open(path).read()
+
+              # Auto-bump the chart patch version when only appVersion changed
+              # (no manual version bump), and add an Artifact Hub changelog
+              # entry describing the image update.
+              if entry['appversion_changed'] and not entry['version_changed']:
+                  m = re.search(r'^version:\s*(\d+)\.(\d+)\.(\d+)', text, re.M)
+                  if not m:
+                      raise SystemExit(f'{c}: could not parse chart version')
+                  new_version = f'{m.group(1)}.{m.group(2)}.{int(m.group(3)) + 1}'
+                  text = re.sub(r'^version:.*$', f'version: {new_version}',
+                                text, count=1, flags=re.M)
+                  am = re.search(r'^appVersion:\s*"?([^\s"]+)"?', text, re.M)
+                  appver = am.group(1)
+                  new_changes = (
+                      '  artifacthub.io/changes: |\n'
+                      f'    - kind: changed\n'
+                      f'      description: Update {c} image to {appver}\n'
+                  )
+                  text = re.sub(
+                      r'  artifacthub\.io/changes:\s*\|\n(?:    .*\n)+',
+                      new_changes, text, count=1)
+                  open(path, 'w').write(text)
+                  print(f'{c}: auto-bumped chart version to {new_version} '
+                        f'for image {appver}')
+                  version = new_version
+              else:
+                  version = entry['version']
+
+              # Regenerate this chart's README from README.md.gotmpl + values.yaml.
+              subprocess.run(['helm-docs', '--chart-to-generate', c], check=True)
+              tags.append(f'{c}-{version}')
+
+          with open('/tmp/tags.txt', 'w') as f:
+              for t in tags:
+                  f.write(t + '\n')
+          PY
+
+      - name: Commit release prep and create version tags
+        run: |
+          set -euo pipefail
+          # Stage every changed chart's Chart.yaml and README.md.
+          git add -A -- '*/Chart.yaml' '*/README.md'
+          if ! git diff --quiet --cached; then
+            CHARTS="$(python3 -c "import json,os;print(', '.join(e['chart']+'-'+e['version'] for e in json.loads(os.environ['CHARTS'])))" 2>/dev/null || true)"
+            git commit -m "release(): prepare ${CHARTS}"
+            git push
+          fi
+          # Create and push a <chart>-<version> tag for each prepared chart.
+          while read -r TAG; do
+            [ -n "$TAG" ] || continue
+            if ! git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+              git tag "$TAG"
+              git push origin "$TAG"
+            fi
+          done < /tmp/tags.txt
+        env:
+          CHARTS: ${{ needs.detect.outputs.charts }}
+
+  # Publish a chart on its <chart>-<version> tag: lint, package, push and
+  # Cosign-sign to GHCR, publish Artifact Hub repository metadata, and create a
+  # GitHub Release named <chart>-<version>.
+  release-publish:
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Parse chart and version from tag
+        id: rel
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF#refs/tags/}"
+          CHART="$(printf '%s' "$TAG" | sed -E 's/-[0-9]+\.[0-9]+\.[0-9]+$//')"
+          VERSION="${TAG#${CHART}-}"
+          [ -f "${CHART}/Chart.yaml" ] || { echo "chart ${CHART} not found"; exit 1; }
+          echo "chart=${CHART}"   >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}"       >> "$GITHUB_OUTPUT"
+          echo "parsed chart=${CHART} version=${VERSION}"
 
       - name: Install Helm
         uses: azure/setup-helm@v4
@@ -94,17 +231,6 @@ jobs:
         with:
           version: 1.3.3
 
-      - name: Install helm-docs
-        env:
-          HELM_DOCS_VERSION: v1.14.2
-        run: |
-          set -euo pipefail
-          curl -fsSL -o /tmp/helm-docs.tar.gz \
-            "https://github.com/norwoodj/helm-docs/releases/download/${HELM_DOCS_VERSION}/helm-docs_${HELM_DOCS_VERSION#v}_Linux_x86_64.tar.gz"
-          tar -xzf /tmp/helm-docs.tar.gz -C /tmp helm-docs
-          sudo install -m 0755 /tmp/helm-docs /usr/local/bin/helm-docs
-          helm-docs --version
-
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -112,106 +238,40 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # --- Auto-tag flow only (push to main) --------------------------------
-      # If the UniFi image (appVersion) was updated without a matching chart
-      # version bump (e.g. a Renovate image-update PR), bump the chart patch
-      # version and add an Artifact Hub changelog entry so the release workflow
-      # cuts a new release for the image update.
-      - name: Auto-bump chart version on image update
-        if: github.ref == 'refs/heads/main' && needs.detect.outputs.appversion_changed == 'true' && needs.detect.outputs.version_changed == 'false'
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import re
-          path = 'unifi/Chart.yaml'
-          text = open(path).read()
-          m = re.search(r'^version:\s*(\d+)\.(\d+)\.(\d+)', text, re.M)
-          if not m:
-              raise SystemExit('could not parse chart version')
-          major, minor, patch = int(m.group(1)), int(m.group(2)), int(m.group(3))
-          new_version = f'{major}.{minor}.{patch + 1}'
-          text = re.sub(r'^version:.*$', f'version: {new_version}', text, count=1, flags=re.M)
-          am = re.search(r'^appVersion:\s*"?([^\s"]+)"?', text, re.M)
-          appver = am.group(1)
-          new_body = f'    - kind: changed\n      description: Update unifi image to {appver}\n'
-          text = re.sub(
-              r'(  artifacthub\.io/changes:\s*\|\n)(?:    .*\n)+',
-              lambda mb: mb.group(1) + new_body,
-              text, count=1)
-          open(path, 'w').write(text)
-          print(f'bumped chart version to {new_version} for unifi image {appver}')
-          PY
-
-      - name: Read final chart version
-        id: rel
-        run: |
-          echo "version=$(grep '^version:' unifi/Chart.yaml | awk '{print $2}')" >> "$GITHUB_OUTPUT"
-
-      # Regenerate the chart README from README.md.gotmpl + values.yaml and
-      # bump the hardcoded version references in the top-level README, then
-      # commit and create the v<version> tag pointing at that commit.
-      - name: Regenerate chart README and bump top-level README versions
-        if: github.ref == 'refs/heads/main'
-        run: |
-          set -euo pipefail
-          CHART_VERSION="${{ steps.rel.outputs.version }}"
-          helm-docs unifi/
-          # Keep the hardcoded version references in README.md in sync with
-          # Chart.yaml: the chart-version badge, the `--version` in the install
-          # command, and the releases/tag/vX link.
-          sed -i -E \
-            -e "s#chart%20version-[0-9][0-9.]*-informational#chart%20version-${CHART_VERSION}-informational#" \
-            -e "s#--version [0-9][0-9.]*#--version ${CHART_VERSION}#g" \
-            -e "s#releases/tag/v[0-9][0-9.]*#releases/tag/v${CHART_VERSION}#g" \
-            README.md
-
-      - name: Commit release prep and create version tag
-        if: github.ref == 'refs/heads/main'
-        run: |
-          set -euo pipefail
-          CHART_VERSION="${{ steps.rel.outputs.version }}"
-          if ! git diff --quiet -- unifi/Chart.yaml unifi/README.md README.md; then
-            git add unifi/Chart.yaml unifi/README.md README.md
-            git commit -m "release(): prepare v${CHART_VERSION}"
-            git push
-          fi
-          if ! git ls-remote --exit-code --tags origin "refs/tags/v${CHART_VERSION}" >/dev/null 2>&1; then
-            git tag "v${CHART_VERSION}"
-            git push origin "v${CHART_VERSION}"
-          fi
-
-      # --- Build, publish, sign, release ------------------------------------
       - name: Build Chart Dependencies
-        run: helm dependency update unifi/
+        run: helm dependency update "${{ steps.rel.outputs.chart }}/"
 
       - name: Lint Chart
-        run: helm lint unifi/
+        run: helm lint "${{ steps.rel.outputs.chart }}/"
 
       - name: Package Chart
-        run: helm package unifi/ --destination ./chart-packages
+        run: helm package "${{ steps.rel.outputs.chart }}/" --destination ./chart-packages
 
       - name: Push Chart to GHCR
         run: |
-          CHART_VERSION="${{ steps.rel.outputs.version }}"
-          helm push "./chart-packages/unifi-${CHART_VERSION}.tgz" oci://ghcr.io/qaoru/helm-charts
+          CHART="${{ steps.rel.outputs.chart }}"
+          VERSION="${{ steps.rel.outputs.version }}"
+          helm push "./chart-packages/${CHART}-${VERSION}.tgz" oci://ghcr.io/qaoru/helm-charts
 
       - name: Sign Chart with Cosign
         run: |
-          CHART_VERSION="${{ steps.rel.outputs.version }}"
-          CHART_REF="ghcr.io/qaoru/helm-charts/unifi:${CHART_VERSION}"
-          cosign sign --yes "${CHART_REF}"
+          CHART="${{ steps.rel.outputs.chart }}"
+          VERSION="${{ steps.rel.outputs.version }}"
+          cosign sign --yes "ghcr.io/qaoru/helm-charts/${CHART}:${VERSION}"
 
       - name: Publish Artifact Hub repository metadata
         run: |
+          CHART="${{ steps.rel.outputs.chart }}"
           oras push \
-            ghcr.io/qaoru/helm-charts/unifi:artifacthub.io \
+            "ghcr.io/qaoru/helm-charts/${CHART}:artifacthub.io" \
             --config /dev/null:application/vnd.cncf.artifacthub.config.v1+yaml \
             artifacthub-repo.yml:application/vnd.cncf.artifacthub.repository-metadata.layer.v1.yaml
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.rel.outputs.version }}
+          tag_name: ${{ steps.rel.outputs.tag }}
+          name: ${{ steps.rel.outputs.tag }}
           files: |
-            ./chart-packages/unifi-*.tgz
+            ./chart-packages/${{ steps.rel.outputs.chart }}-*.tgz
           generate_release_notes: true

@@ -19,7 +19,7 @@ keywords:
 annotations:
   artifacthub.io/changes: |
     - kind: added
-      description: Initial release of the open-terminal chart (ported from the local homelab chart), with an embedded optional CiliumNetworkPolicy for air-gapped isolation.
+      description: Initial release of the open-terminal chart, with an embedded optional CiliumNetworkPolicy for air-gapped isolation.
   artifacthub.io/links: |
     - name: Open Terminal (upstream)
       url: https://github.com/open-webui/open-terminal

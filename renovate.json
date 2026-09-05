@@ -6,7 +6,7 @@
   "customManagers": [
     {
       "customType": "regex",
-      "description": "Bump the UniFi image tag held in Chart.yaml appVersion (linuxserver <version>-ls<build> tags).",
+      "description": "Bump the UniFi image tag held in unifi/Chart.yaml appVersion (linuxserver <version>-ls<build> tags).",
       "fileMatch": ["^unifi/Chart\\.yaml$"],
       "matchStrings": [
         "appVersion:\\s*\"?(?<currentValue>\\d+\\.\\d+\\.\\d+-ls\\d+)\"?"
@@ -18,7 +18,7 @@
     },
     {
       "customType": "regex",
-      "description": "Bump the UniFi image reference in the Artifact Hub images annotation in lockstep with appVersion.",
+      "description": "Bump the UniFi image reference in the Artifact Hub images annotation in unifi/Chart.yaml in lockstep with appVersion.",
       "fileMatch": ["^unifi/Chart\\.yaml$"],
       "matchStrings": [
         "image:\\s*linuxserver/unifi-network-application:(?<currentValue>\\d+\\.\\d+\\.\\d+-ls\\d+)"
@@ -27,6 +27,30 @@
       "depNameTemplate": "linuxserver/unifi-network-application",
       "datasourceTemplate": "docker",
       "versioningTemplate": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)-ls(?<build>\\d+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "Bump the Open Terminal slim image tag held in open-terminal/Chart.yaml appVersion (<version>-slim variant tags).",
+      "fileMatch": ["^open-terminal/Chart\\.yaml$"],
+      "matchStrings": [
+        "appVersion:\\s*\"?(?<currentValue>\\d+\\.\\d+\\.\\d+-slim)\"?"
+      ],
+      "autoReplaceStringTemplate": "appVersion: {{newValue}}",
+      "depNameTemplate": "ghcr.io/open-webui/open-terminal",
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)-slim$"
+    },
+    {
+      "customType": "regex",
+      "description": "Bump the Open Terminal slim image reference in the Artifact Hub images annotation in open-terminal/Chart.yaml in lockstep with appVersion.",
+      "fileMatch": ["^open-terminal/Chart\\.yaml$"],
+      "matchStrings": [
+        "image:\\s*ghcr.io/open-webui/open-terminal:(?<currentValue>\\d+\\.\\d+\\.\\d+-slim)"
+      ],
+      "autoReplaceStringTemplate": "image: ghcr.io/open-webui/open-terminal:{{newValue}}",
+      "depNameTemplate": "ghcr.io/open-webui/open-terminal",
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)-slim$"
     }
   ]
 }
