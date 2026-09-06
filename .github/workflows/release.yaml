@@ -400,19 +400,36 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          if [ ! -f artifacthub-repo.yml ]; then
-            echo "artifacthub-repo.yml missing from checkout; nothing to publish"
+          # Read the metadata from the pushed commit rather than the working
+          # tree: `cr index --push` may leave the worktree on the gh-pages
+          # branch, where artifacthub-repo.yml does not exist.
+          META="artifacthub-repo.yml"
+          CONTENT="$(git show "${GITHUB_SHA}:${META}" 2>/dev/null || true)"
+          if [ -z "$CONTENT" ]; then
+            echo "::warning::${META} not found at ${GITHUB_SHA}; nothing to publish"
             exit 0
           fi
-          TMP=$(mktemp -d)
-          git clone --quiet --branch gh-pages --depth 1 \
+          TMP="$(mktemp -d)"
+          trap 'rm -rf "$TMP"' EXIT
+          git clone --quiet --branch gh-pages \
             "https://github-actions:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$TMP"
-          cp artifacthub-repo.yml "$TMP/artifacthub-repo.yml"
-          git -C "$TMP" add artifacthub-repo.yml
+          # The workspace's git identity is not inherited by this clone; set
+          # it here so `git commit` does not fail with "Author identity unknown".
+          git -C "$TMP" config user.name  "github-actions[bot]"
+          git -C "$TMP" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          printf '%s\n' "$CONTENT" > "$TMP/${META}"
+          git -C "$TMP" add "${META}"
           if git -C "$TMP" diff --cached --quiet; then
-            echo "artifacthub-repo.yml unchanged on gh-pages; nothing to push"
-          else
-            git -C "$TMP" commit -m "pages(): sync artifacthub-repo.yml"
+            echo "${META} already up to date on gh-pages; nothing to push"
+            exit 0
+          fi
+          git -C "$TMP" commit -m "pages(): sync ${META}"
+          # Retry once on non-fast-forward (e.g. a concurrent push to gh-pages).
+          if ! git -C "$TMP" push --quiet origin gh-pages 2>/tmp/ah-push.err; then
+            echo "first push failed; rebasing on remote gh-pages and retrying:"
+            cat /tmp/ah-push.err || true
+            git -C "$TMP" fetch --quiet origin gh-pages
+            git -C "$TMP" rebase --quiet origin/gh-pages
             git -C "$TMP" push --quiet origin gh-pages
           fi
-          rm -rf "$TMP"
+          echo "${META} published to gh-pages"
