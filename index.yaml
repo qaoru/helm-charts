@@ -3,6 +3,45 @@ entries:
   open-terminal:
   - annotations:
       artifacthub.io/changes: |
+        - kind: added
+          description: Add `values.schema.json` for input validation (rejects unknown keys, bad enums, non-DNS instance names, and malformed instances before install).
+      artifacthub.io/images: |-
+        - name: open-terminal
+          image: ghcr.io/open-webui/open-terminal:0.12.3-slim
+      artifacthub.io/links: |
+        - name: Open Terminal (upstream)
+          url: https://github.com/open-webui/open-terminal
+        - name: Source repository
+          url: https://github.com/qaoru/helm-charts/tree/main/open-terminal
+      artifacthub.io/maintainers: |
+        - name: qaoru
+          email: paul@qaoru.fr
+    apiVersion: v2
+    appVersion: 0.12.3-slim
+    created: "2026-09-06T15:08:15.938940537Z"
+    description: Multiple Open Terminal workstations for Open WebUI -- the agent execution
+      sandbox Open WebUI drives from chat -- each a stateful, individually-addressable
+      endpoint with optional Cilium air-gapped network isolation and optional persistent
+      workspace.
+    digest: 3425bcf1ac5d437816db098f7b1f8d18d41a4503a4dd605d2a14c6837896eed8
+    home: https://github.com/qaoru/helm-charts/tree/main/open-terminal
+    icon: https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/open-webui.svg
+    keywords:
+    - open-webui
+    - open-terminal
+    - agent
+    - sandbox
+    - terminal
+    maintainers:
+    - email: paul@qaoru.fr
+      name: qaoru
+    name: open-terminal
+    type: application
+    urls:
+    - https://github.com/qaoru/helm-charts/releases/download/open-terminal-0.2.2/open-terminal-0.2.2.tgz
+    version: 0.2.2
+  - annotations:
+      artifacthub.io/changes: |
         - kind: fixed
           description: "`networkPolicy.enabled: false` now actually suppresses the embedded CiliumNetworkPolicy. Sprig's `default` treats `false` as empty, so `($np.enabled | default true)` evaluated to `true` even when an instance disabled the policy; switched to a hasKey check so an explicit `false` is respected."
         - kind: fixed
@@ -121,6 +160,50 @@ entries:
   unifi:
   - annotations:
       artifacthub.io/changes: |
+        - kind: added
+          description: Add `values.schema.json` for input validation (rejects unknown keys, bad enums, malformed ports/probes/services before install).
+      artifacthub.io/images: |
+        - name: unifi
+          image: linuxserver/unifi-network-application:10.6.101-ls144
+        - name: mongo-init
+          image: mongo:7.0
+      artifacthub.io/links: |
+        - name: UniFi Network Application (linuxserver image)
+          url: https://hub.docker.com/r/linuxserver/unifi-network-application
+        - name: Source repository
+          url: https://github.com/qaoru/helm-charts/tree/main/unifi
+      artifacthub.io/maintainers: |
+        - name: qaoru
+          email: paul@qaoru.fr
+    apiVersion: v2
+    appVersion: 10.6.101-ls144
+    created: "2026-09-06T15:08:16.346105066Z"
+    dependencies:
+    - condition: metrics.enabled
+      name: unpoller
+      repository: https://unpoller.github.io/helm-chart
+      version: 2.4.0
+    description: The unifi software is a powerful, enterprise wireless software engine
+      ideal for high-density client deployments requiring low latency and high uptime
+      performance.
+    digest: 7f13d427c3e42f266b7bae59ea0fb7d8405b40c6665699e571b7ef37eaaab2bf
+    home: https://github.com/qaoru/helm-charts/tree/main/unifi
+    icon: https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/ubiquiti-unifi.svg
+    keywords:
+    - network
+    - unifi
+    - ubiquiti
+    - controller
+    maintainers:
+    - email: paul@qaoru.fr
+      name: qaoru
+    name: unifi
+    type: application
+    urls:
+    - https://github.com/qaoru/helm-charts/releases/download/unifi-1.1.2/unifi-1.1.2.tgz
+    version: 1.1.2
+  - annotations:
+      artifacthub.io/changes: |
         - kind: changed
           description: Update unifi image to 10.6.101-ls144
       artifacthub.io/images: |
@@ -163,4 +246,4 @@ entries:
     urls:
     - https://github.com/qaoru/helm-charts/releases/download/unifi-1.1.1/unifi-1.1.1.tgz
     version: 1.1.1
-generated: "2026-09-06T14:10:40.64049622Z"
+generated: "2026-09-06T15:08:16.346124602Z"
