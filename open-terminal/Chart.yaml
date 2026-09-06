@@ -19,7 +19,7 @@ keywords:
 annotations:
   artifacthub.io/changes: |
     - kind: changed
-      description: BREAKING. Replaces the single Deployment with an `instances` list of individually-addressable Open Terminal workstations (StatefulSet + headless governing Service, plus a ClusterIP Service when replicaCount==1) so a chat session binds to one stateful endpoint. Each instance gets its own env, resources, image/apiKey/runtimeClassName overrides, persistent PVC (volumeClaimTemplate), and CiliumNetworkPolicy. Stateful, in-process sessions cannot be safely load-balanced across replicas, so replicaCount>1 addresses pods by ordinal DNS and the convenience ClusterIP Service is not created for it.
+      description: BREAKING. Replaces the single Deployment with an `instances` list of individually-addressable Open Terminal workstations -- a StatefulSet per entry (exactly one pod; `replicas` is fixed at 1, since Open Terminal is a stateful in-process server whose per-session cwd, background jobs, and interactive PTY terminals live in pod memory and cannot be safely load-balanced), plus headless governing and ClusterIP Services and a CiliumNetworkPolicy. Each instance gets its own env, resources, image/apiKey/runtimeClassName/nodeSelector overrides, persistent PVC (volumeClaimTemplate), and network policy. Multiple workstations = multiple `instances` entries, not horizontal scaling. The chart-wide stable `open-terminal` Service DNS name is gone; each workstation has its own `open-terminal-<name>` URL, registered manually in the Open WebUI admin UI.
   artifacthub.io/links: |
     - name: Open Terminal (upstream)
       url: https://github.com/open-webui/open-terminal
