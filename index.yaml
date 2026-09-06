@@ -3,6 +3,45 @@ entries:
   open-terminal:
   - annotations:
       artifacthub.io/changes: |
+        - kind: changed
+          description: BREAKING. Replaces the single Deployment with an `instances` list of individually-addressable Open Terminal workstations (StatefulSet + headless governing Service, plus a ClusterIP Service when replicaCount==1) so a chat session binds to one stateful endpoint. Each instance gets its own env, resources, image/apiKey/runtimeClassName overrides, persistent PVC (volumeClaimTemplate), and CiliumNetworkPolicy. Stateful, in-process sessions cannot be safely load-balanced across replicas, so replicaCount>1 addresses pods by ordinal DNS and the convenience ClusterIP Service is not created for it.
+      artifacthub.io/images: |-
+        - name: open-terminal
+          image: ghcr.io/open-webui/open-terminal:0.12.3-slim
+      artifacthub.io/links: |
+        - name: Open Terminal (upstream)
+          url: https://github.com/open-webui/open-terminal
+        - name: Source repository
+          url: https://github.com/qaoru/helm-charts/tree/main/open-terminal
+      artifacthub.io/maintainers: |
+        - name: qaoru
+          email: paul@qaoru.fr
+    apiVersion: v2
+    appVersion: 0.12.3-slim
+    created: "2026-09-06T11:44:00.824595588Z"
+    description: Multiple Open Terminal workstations for Open WebUI -- the agent execution
+      sandbox Open WebUI drives from chat -- each a stateful, individually-addressable
+      endpoint with optional Cilium air-gapped network isolation and optional persistent
+      workspace.
+    digest: f9d8f4022a0ec4dc801e2919638d0b8601f0bdb497e37314a916ae07253353bc
+    home: https://github.com/qaoru/helm-charts/tree/main/open-terminal
+    icon: https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/open-webui.svg
+    keywords:
+    - open-webui
+    - open-terminal
+    - agent
+    - sandbox
+    - terminal
+    maintainers:
+    - email: paul@qaoru.fr
+      name: qaoru
+    name: open-terminal
+    type: application
+    urls:
+    - https://github.com/qaoru/helm-charts/releases/download/open-terminal-0.2.0/open-terminal-0.2.0.tgz
+    version: 0.2.0
+  - annotations:
+      artifacthub.io/changes: |
         - kind: added
           description: Initial release of the open-terminal chart, with an embedded optional CiliumNetworkPolicy for air-gapped isolation.
       artifacthub.io/images: |-
@@ -83,4 +122,4 @@ entries:
     urls:
     - https://github.com/qaoru/helm-charts/releases/download/unifi-1.1.1/unifi-1.1.1.tgz
     version: 1.1.1
-generated: "2026-09-05T15:58:23.479204337Z"
+generated: "2026-09-06T11:44:01.015226526Z"
