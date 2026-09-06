@@ -3,6 +3,47 @@ entries:
   open-terminal:
   - annotations:
       artifacthub.io/changes: |
+        - kind: fixed
+          description: "`networkPolicy.enabled: false` now actually suppresses the embedded CiliumNetworkPolicy. Sprig's `default` treats `false` as empty, so `($np.enabled | default true)` evaluated to `true` even when an instance disabled the policy; switched to a hasKey check so an explicit `false` is respected."
+        - kind: fixed
+          description: "Instance-level `runtimeClassName` and `nodeSelector` are now honored when set to an explicit empty value (`\"\"` / `{}`), so a workstation can drop a chart-wide `kata` setting. Switched from Sprig `default` (which treats `\"\"`/`{}` as empty and falls back to the chart-wide value) to a hasKey check: omit the key to inherit the chart-wide default, set it (including empty) to override. The default instance now omits these keys so it inherits chart-wide settings."
+      artifacthub.io/images: |-
+        - name: open-terminal
+          image: ghcr.io/open-webui/open-terminal:0.12.3-slim
+      artifacthub.io/links: |
+        - name: Open Terminal (upstream)
+          url: https://github.com/open-webui/open-terminal
+        - name: Source repository
+          url: https://github.com/qaoru/helm-charts/tree/main/open-terminal
+      artifacthub.io/maintainers: |
+        - name: qaoru
+          email: paul@qaoru.fr
+    apiVersion: v2
+    appVersion: 0.12.3-slim
+    created: "2026-09-06T14:10:40.451142617Z"
+    description: Multiple Open Terminal workstations for Open WebUI -- the agent execution
+      sandbox Open WebUI drives from chat -- each a stateful, individually-addressable
+      endpoint with optional Cilium air-gapped network isolation and optional persistent
+      workspace.
+    digest: ce645f090a51b68d905298205713a7647315aee9b71f8bea8f4a4ad974473c97
+    home: https://github.com/qaoru/helm-charts/tree/main/open-terminal
+    icon: https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/open-webui.svg
+    keywords:
+    - open-webui
+    - open-terminal
+    - agent
+    - sandbox
+    - terminal
+    maintainers:
+    - email: paul@qaoru.fr
+      name: qaoru
+    name: open-terminal
+    type: application
+    urls:
+    - https://github.com/qaoru/helm-charts/releases/download/open-terminal-0.2.1/open-terminal-0.2.1.tgz
+    version: 0.2.1
+  - annotations:
+      artifacthub.io/changes: |
         - kind: changed
           description: BREAKING. Replaces the single Deployment with an `instances` list of individually-addressable Open Terminal workstations (StatefulSet + headless governing Service, plus a ClusterIP Service when replicaCount==1) so a chat session binds to one stateful endpoint. Each instance gets its own env, resources, image/apiKey/runtimeClassName overrides, persistent PVC (volumeClaimTemplate), and CiliumNetworkPolicy. Stateful, in-process sessions cannot be safely load-balanced across replicas, so replicaCount>1 addresses pods by ordinal DNS and the convenience ClusterIP Service is not created for it.
       artifacthub.io/images: |-
@@ -122,4 +163,4 @@ entries:
     urls:
     - https://github.com/qaoru/helm-charts/releases/download/unifi-1.1.1/unifi-1.1.1.tgz
     version: 1.1.1
-generated: "2026-09-06T11:44:01.015226526Z"
+generated: "2026-09-06T14:10:40.64049622Z"
