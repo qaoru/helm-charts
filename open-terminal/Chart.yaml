@@ -3,7 +3,7 @@ apiVersion: v2
 type: application
 name: open-terminal
 description: Multiple Open Terminal workstations for Open WebUI -- the agent execution sandbox Open WebUI drives from chat -- each a stateful, individually-addressable endpoint with optional Cilium air-gapped network isolation and optional persistent workspace.
-version: 0.2.1
+version: 0.2.2
 appVersion: 0.12.3-slim
 home: https://github.com/qaoru/helm-charts/tree/main/open-terminal
 icon: https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/open-webui.svg
@@ -18,10 +18,8 @@ keywords:
   - terminal
 annotations:
   artifacthub.io/changes: |
-    - kind: fixed
-      description: "`networkPolicy.enabled: false` now actually suppresses the embedded CiliumNetworkPolicy. Sprig's `default` treats `false` as empty, so `($np.enabled | default true)` evaluated to `true` even when an instance disabled the policy; switched to a hasKey check so an explicit `false` is respected."
-    - kind: fixed
-      description: "Instance-level `runtimeClassName` and `nodeSelector` are now honored when set to an explicit empty value (`\"\"` / `{}`), so a workstation can drop a chart-wide `kata` setting. Switched from Sprig `default` (which treats `\"\"`/`{}` as empty and falls back to the chart-wide value) to a hasKey check: omit the key to inherit the chart-wide default, set it (including empty) to override. The default instance now omits these keys so it inherits chart-wide settings."
+    - kind: added
+      description: Add `values.schema.json` for input validation (rejects unknown keys, bad enums, non-DNS instance names, and malformed instances before install).
   artifacthub.io/links: |
     - name: Open Terminal (upstream)
       url: https://github.com/open-webui/open-terminal

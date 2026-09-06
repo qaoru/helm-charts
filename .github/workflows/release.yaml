@@ -388,3 +388,31 @@ jobs:
             --git-repo "${{ github.event.repository.name }}" \
             --token "${GH_TOKEN}" \
             --push
+
+      # Artifact Hub verifies a repository by fetching
+      # artifacthub-repo.yml from the root of the registered Helm repo URL
+      # (the GitHub Pages site). `cr index --push` only commits index.yaml,
+      # so we stage the metadata file separately to keep it in sync with the
+      # main-branch source on every release. Without this, the HTTP repo is
+      # served without the file and Artifact Hub cannot mark it verified.
+      - name: Publish artifacthub-repo.yml to gh-pages
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ ! -f artifacthub-repo.yml ]; then
+            echo "artifacthub-repo.yml missing from checkout; nothing to publish"
+            exit 0
+          fi
+          TMP=$(mktemp -d)
+          git clone --quiet --branch gh-pages --depth 1 \
+            "https://github-actions:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$TMP"
+          cp artifacthub-repo.yml "$TMP/artifacthub-repo.yml"
+          git -C "$TMP" add artifacthub-repo.yml
+          if git -C "$TMP" diff --cached --quiet; then
+            echo "artifacthub-repo.yml unchanged on gh-pages; nothing to push"
+          else
+            git -C "$TMP" commit -m "pages(): sync artifacthub-repo.yml"
+            git -C "$TMP" push --quiet origin gh-pages
+          fi
+          rm -rf "$TMP"

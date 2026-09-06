@@ -1,0 +1,269 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "unifi values",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository": { "type": "string" },
+        "tag": { "type": ["string", "null"] },
+        "pullPolicy": {
+          "type": "string",
+          "enum": ["Always", "IfNotPresent", "Never"]
+        }
+      }
+    },
+    "env": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "PUID": { "type": "string" },
+        "PGID": { "type": "string" },
+        "TZ": { "type": "string" }
+      }
+    },
+    "extraEnv": {
+      "type": "array",
+      "description": "Additional environment variables as a list of {name, value} objects.",
+      "items": { "type": "object" }
+    },
+    "database": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "host": { "type": "string" },
+        "port": { "type": "integer", "minimum": 0, "maximum": 65535 },
+        "dbName": { "type": "string" },
+        "authSource": { "type": "string" },
+        "initImage": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "repository": { "type": "string" },
+            "tag": { "type": "string" },
+            "pullPolicy": {
+              "type": "string",
+              "enum": ["Always", "IfNotPresent", "Never"]
+            }
+          }
+        },
+        "credentials": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "generate": { "type": "boolean" },
+            "secretName": { "type": "string" },
+            "usernameKey": { "type": "string" },
+            "passwordKey": { "type": "string" }
+          }
+        },
+        "initCredentials": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "secretName": { "type": "string" },
+            "usernameKey": { "type": "string" },
+            "passwordKey": { "type": "string" }
+          }
+        }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "flavor": {
+          "type": "string",
+          "enum": ["kubernetes", "cilium"]
+        },
+        "cilium": {
+          "type": "object",
+          "description": "Cilium-specific egress and ingress rules (CiliumNetworkPolicy schema).",
+          "additionalProperties": true
+        },
+        "ingress": {
+          "type": "array",
+          "description": "Standard Kubernetes NetworkPolicy ingress rules.",
+          "items": { "type": "object" }
+        },
+        "egress": {
+          "description": "Standard Kubernetes NetworkPolicy egress rules (array of rules or empty object).",
+          "oneOf": [
+            { "type": "array", "items": { "type": "object" } },
+            { "type": "object" }
+          ]
+        }
+      }
+    },
+    "replicaCount": { "type": "integer", "minimum": 1 },
+    "revisionHistoryLimit": { "type": "integer", "minimum": 0 },
+    "podAnnotations": { "type": "object", "additionalProperties": { "type": "string" } },
+    "podLabels": { "type": "object", "additionalProperties": { "type": "string" } },
+    "podPorts": {
+      "type": "object",
+      "description": "Container port definitions, keyed by port name. Each value becomes a containerPort in the StatefulSet and is toggled per Service via services.*.enablePorts.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "containerPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
+          "protocol": { "type": "string", "enum": ["TCP", "UDP", "SCTP"] }
+        },
+        "required": ["containerPort", "protocol"]
+      }
+    },
+    "resources": {
+      "type": "object",
+      "description": "Kubernetes ResourceRequirements for the main container.",
+      "additionalProperties": true
+    },
+    "initContainerSecurityContext": { "type": "object", "additionalProperties": true },
+    "initContainerResources": { "type": ["object", "null"], "additionalProperties": true },
+    "containerSecurityContext": { "type": ["object", "null"], "additionalProperties": true },
+    "podSecurityContext": { "type": "object", "additionalProperties": true },
+    "probes": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "liveness": { "$ref": "#/$defs/probe" },
+        "readiness": { "$ref": "#/$defs/probe" }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "create": { "type": "boolean" },
+        "automount": { "type": "boolean" },
+        "annotations": { "type": "object", "additionalProperties": { "type": "string" } },
+        "name": { "type": "string" }
+      }
+    },
+    "persistence": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "storageClass": { "type": "string" },
+        "accessModes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["ReadWriteOnce", "ReadOnlyMany", "ReadWriteMany", "ReadWriteOncePod"]
+          }
+        },
+        "size": { "type": "string" },
+        "annotations": { "type": "object", "additionalProperties": { "type": "string" } }
+      }
+    },
+    "services": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "internal": { "$ref": "#/$defs/service" },
+        "public": { "$ref": "#/$defs/service" }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "className": { "type": "string" },
+        "annotations": { "type": "object", "additionalProperties": { "type": "string" } },
+        "hosts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "host": { "type": "string" },
+              "paths": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "path": { "type": "string" },
+                    "pathType": {
+                      "type": "string",
+                      "enum": ["Exact", "Prefix", "ImplementationSpecific"]
+                    }
+                  },
+                  "required": ["path", "pathType"]
+                }
+              }
+            },
+            "required": ["host", "paths"]
+          }
+        },
+        "tls": {
+          "type": "array",
+          "items": { "type": "object" }
+        }
+      }
+    },
+    "nodeSelector": { "type": "object", "additionalProperties": true },
+    "tolerations": { "type": "array", "items": { "type": "object" } },
+    "affinity": { "type": "object", "additionalProperties": true },
+    "extraVolumeMounts": { "type": "array", "items": { "type": "object" } },
+    "extraVolumes": { "type": "array", "items": { "type": "object" } },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "unifiCredentials": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "generate": { "type": "boolean" },
+            "secretName": { "type": "string" },
+            "usernameKey": { "type": "string" },
+            "passwordKey": { "type": "string" }
+          }
+        }
+      }
+    },
+    "unpoller": {
+      "type": "object",
+      "description": "Values passed to the unpoller subchart when metrics.enabled is true.",
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "probe": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+        "periodSeconds": { "type": "integer", "minimum": 1 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "failureThreshold": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "type": {
+          "type": "string",
+          "enum": ["ClusterIP", "NodePort", "LoadBalancer", "ExternalName"]
+        },
+        "annotations": { "type": "object", "additionalProperties": { "type": "string" } },
+        "loadBalancerIP": { "type": "string" },
+        "enablePorts": {
+          "type": "object",
+          "description": "Per-port-name toggle (keys must match podPorts).",
+          "additionalProperties": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}

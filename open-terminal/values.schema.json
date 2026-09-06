@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "open-terminal values",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository": { "type": "string" },
+        "tag": { "type": ["string", "null"] },
+        "pullPolicy": {
+          "type": "string",
+          "enum": ["Always", "IfNotPresent", "Never"]
+        }
+      }
+    },
+    "apiKey": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "existingSecret": { "type": "string" },
+        "key": { "type": "string" }
+      }
+    },
+    "runtimeClassName": { "type": ["string", "null"] },
+    "nodeSelector": { "type": "object", "additionalProperties": true },
+    "podSecurityContext": { "type": "object", "additionalProperties": true },
+    "containerSecurityContext": { "type": "object", "additionalProperties": true },
+    "instances": {
+      "type": "array",
+      "description": "Workstations to deploy. At least one entry is required; each renders a StatefulSet (one pod), a headless governing Service, a ClusterIP Service, and a CiliumNetworkPolicy.",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/instance" }
+    }
+  },
+  "required": ["instances"],
+  "$defs": {
+    "instance": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Workstation name (DNS-safe). Becomes open-terminal-<name> in all resource names and the Service DNS name Open WebUI points at.",
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+          "maxLength": 50
+        },
+        "image": {
+          "type": "object",
+          "description": "Image override merged over the chart-wide image. Omit to inherit.",
+          "additionalProperties": false,
+          "properties": {
+            "repository": { "type": "string" },
+            "tag": { "type": ["string", "null"] },
+            "pullPolicy": {
+              "type": "string",
+              "enum": ["Always", "IfNotPresent", "Never"]
+            }
+          }
+        },
+        "apiKey": {
+          "type": "object",
+          "description": "API key override merged over the chart-wide apiKey. Omit to inherit.",
+          "additionalProperties": false,
+          "properties": {
+            "existingSecret": { "type": "string" },
+            "key": { "type": "string" }
+          }
+        },
+        "runtimeClassName": { "type": ["string", "null"] },
+        "nodeSelector": { "type": "object", "additionalProperties": true },
+        "env": {
+          "type": "object",
+          "description": "Open Terminal app env for this workstation (beyond OPEN_TERMINAL_API_KEY, which comes from the secret).",
+          "additionalProperties": { "type": ["string", "object", "integer", "boolean"] }
+        },
+        "resources": {
+          "type": "object",
+          "description": "Kubernetes ResourceRequirements for the workstation container.",
+          "additionalProperties": true
+        },
+        "workspace": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "size": { "type": "string", "description": "emptyDir sizeLimit for the workspace (used when persistence is off)." }
+          }
+        },
+        "persistence": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "size": { "type": "string" },
+            "storageClass": { "type": "string" },
+            "accessMode": {
+              "type": "string",
+              "enum": ["ReadWriteOnce", "ReadOnlyMany", "ReadWriteMany", "ReadWriteOncePod"]
+            },
+            "mountPath": { "type": "string" }
+          }
+        },
+        "networkPolicy": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "flavor": {
+              "type": "string",
+              "enum": ["cilium"]
+            },
+            "ingress": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "fromNamespace": { "type": "string" },
+                "fromName": { "type": "string" },
+                "port": { "type": ["integer", "string"], "minimum": 1 }
+              }
+            }
+          }
+        }
+      },
+      "required": ["name"]
+    }
+  }
+}
