@@ -1,6 +1,6 @@
 # unifi
 
-![Version: 1.1.1](https://img.shields.io/badge/Version-1.1.1-informational?style=flat-square)
+![Version: 1.1.2](https://img.shields.io/badge/Version-1.1.2-informational?style=flat-square)
 ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square)
 ![AppVersion: 10.6.101-ls144](https://img.shields.io/badge/AppVersion-10.6.101-ls144-informational?style=flat-square)
 
@@ -30,7 +30,7 @@ kubectl create secret generic unifi-db-credentials \
 ### 2. Install the chart
 
 ```bash
-helm install unifi oci://ghcr.io/qaoru/helm-charts/unifi --version 1.1.1 \
+helm install unifi oci://ghcr.io/qaoru/helm-charts/unifi --version 1.1.2 \
   --set database.host=<your-mongodb-host> \
   --set database.credentials.generate=true
 ```
@@ -38,7 +38,7 @@ helm install unifi oci://ghcr.io/qaoru/helm-charts/unifi --version 1.1.1 \
 Or with a local `values.yaml`:
 
 ```bash
-helm install unifi oci://ghcr.io/qaoru/helm-charts/unifi --version 1.1.1 -f values.yaml
+helm install unifi oci://ghcr.io/qaoru/helm-charts/unifi --version 1.1.2 -f values.yaml
 ```
 
 ## Configuration

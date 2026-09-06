@@ -1,6 +1,6 @@
 # open-terminal
 
-![Version: 0.2.1](https://img.shields.io/badge/Version-0.2.1-informational?style=flat-square)
+![Version: 0.2.2](https://img.shields.io/badge/Version-0.2.2-informational?style=flat-square)
 ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square)
 ![AppVersion: 0.12.3-slim](https://img.shields.io/badge/AppVersion-0.12.3-slim-informational?style=flat-square)
 
@@ -80,13 +80,13 @@ kubectl create secret generic open-terminal-api-key \
 ### 2. Install the chart
 
 ```bash
-helm install open-terminal oci://ghcr.io/qaoru/helm-charts/open-terminal --version 0.2.1
+helm install open-terminal oci://ghcr.io/qaoru/helm-charts/open-terminal --version 0.2.2
 ```
 
 Or with a local `values.yaml`:
 
 ```bash
-helm install open-terminal oci://ghcr.io/qaoru/helm-charts/open-terminal --version 0.2.1 -f values.yaml
+helm install open-terminal oci://ghcr.io/qaoru/helm-charts/open-terminal --version 0.2.2 -f values.yaml
 ```
 
 ### 3. Deploy several workstations
