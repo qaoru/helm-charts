@@ -1,16 +1,45 @@
+{{- range $inst := .Values.instances }}
+{{- $ctx := dict "root" $ "inst" $inst }}
+{{- $wsName := include "open-terminal.workstationName" $ctx }}
+# Headless governing Service (required by the StatefulSet for stable pod
+# identity). Each workstation is exactly one pod, so this is not used for
+# addressing -- it only backs the StatefulSet's serviceName contract.
+---
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "open-terminal.name" . }}
-  namespace: {{ .Release.Namespace }}
+  name: {{ $wsName }}-h
+  namespace: {{ $.Release.Namespace }}
   labels:
-    {{- include "open-terminal.labels" . | nindent 4 }}
+    {{- include "open-terminal.workstationLabels" $ctx | nindent 4 }}
 spec:
   type: ClusterIP
+  clusterIP: None
   selector:
-    {{- include "open-terminal.selectorLabels" . | nindent 4 }}
+    {{- include "open-terminal.workstationSelectorLabels" $ctx | nindent 4 }}
   ports:
     - name: http
       port: 8000
       targetPort: http
       protocol: TCP
+# ClusterIP Service -- the single endpoint Open WebUI points at:
+# http://open-terminal-<name>:8000. Always created; a workstation is exactly
+# one pod, so there is no round-robin hazard.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $wsName }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "open-terminal.workstationLabels" $ctx | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "open-terminal.workstationSelectorLabels" $ctx | nindent 4 }}
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+      protocol: TCP
+{{- end }}

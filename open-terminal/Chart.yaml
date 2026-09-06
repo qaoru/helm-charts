@@ -2,8 +2,8 @@
 apiVersion: v2
 type: application
 name: open-terminal
-description: Single Open Terminal instance for Open WebUI, the agent execution sandbox, with optional Cilium air-gapped network isolation.
-version: 0.1.1
+description: Multiple Open Terminal workstations for Open WebUI -- the agent execution sandbox Open WebUI drives from chat -- each a stateful, individually-addressable endpoint with optional Cilium air-gapped network isolation and optional persistent workspace.
+version: 0.2.0
 appVersion: 0.12.3-slim
 home: https://github.com/qaoru/helm-charts/tree/main/open-terminal
 icon: https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/open-webui.svg
@@ -18,8 +18,8 @@ keywords:
   - terminal
 annotations:
   artifacthub.io/changes: |
-    - kind: added
-      description: Initial release of the open-terminal chart, with an embedded optional CiliumNetworkPolicy for air-gapped isolation.
+    - kind: changed
+      description: BREAKING. Replaces the single Deployment with an `instances` list of individually-addressable Open Terminal workstations (StatefulSet + headless governing Service, plus a ClusterIP Service when replicaCount==1) so a chat session binds to one stateful endpoint. Each instance gets its own env, resources, image/apiKey/runtimeClassName overrides, persistent PVC (volumeClaimTemplate), and CiliumNetworkPolicy. Stateful, in-process sessions cannot be safely load-balanced across replicas, so replicaCount>1 addresses pods by ordinal DNS and the convenience ClusterIP Service is not created for it.
   artifacthub.io/links: |
     - name: Open Terminal (upstream)
       url: https://github.com/open-webui/open-terminal

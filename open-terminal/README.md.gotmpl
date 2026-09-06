@@ -6,22 +6,59 @@
 
 {{ template "chart.description" . }}
 
-A single [Open Terminal](https://github.com/open-webui/open-terminal) instance --
-the agent execution sandbox Open WebUI drives from chat: it runs commands,
-manages files, and executes code. It gets the strongest containment the chart
-ships with by default: a slim image, an ephemeral workspace, and an embedded
-Cilium network policy that air-gaps it (egress default-deny, ingress only from
-the configured client).
+One or more [Open Terminal](https://github.com/open-webui/open-terminal) instances
+-- the agent execution sandbox Open WebUI drives from chat: it runs commands,
+manages files, and executes code. Each instance is a **workstation**: a single
+stateful, individually-addressable endpoint a chat session binds to for its
+lifetime. By default each workstation gets the strongest containment the chart
+ships with: a slim image, an ephemeral workspace, and an embedded Cilium
+network policy that air-gaps it (egress default-deny, ingress only from the
+configured client).
 
-## What this chart deploys
+## Why "workstations" (not replicas behind one Service)
 
-- `Deployment` -- one `ghcr.io/open-webui/open-terminal` replica (the slim
-  variant, pinned via `appVersion`) with an ephemeral `emptyDir` workspace at
-  `/home/user`.
-- `Service` -- `open-terminal` ClusterIP on `:8000` (same namespace as the
-  release). Open WebUI reaches it at `http://open-terminal:8000`.
-- `CiliumNetworkPolicy` -- (enabled by default) egress default-deny (air-gapped)
-  and ingress only from the configured client pod on `:8000`.
+Open Terminal is a **stateful, in-process server**. Per-session cwd, background
+command jobs, and interactive PTY terminals all live in pod memory (keyed by
+the `x-session-id` header / server-generated IDs), with **no shared/external
+store**. So multiple replicas behind a single `Service` are *not* safe: a
+request that load-balances to a different pod loses the cwd, 404s background
+jobs, and reconnects the terminal WebSocket into a fresh empty shell. K8s
+`sessionAffinity: ClientIP` does not fix this -- a pod restart nukes the
+in-memory session, and behind the Open WebUI backend proxy every request
+shares one client IP.
+
+The upstream project's own guidance is the same shape: for multi-tenant use it
+points to a companion project that provisions a **separate container per
+user**. This chart follows that model at the Helm level: each `instances[]`
+entry is one workstation (exactly one pod) with its own StatefulSet + Services +
+NetworkPolicy, addressed by a stable DNS name. A workstation is intentionally a
+single replica -- there is no safe way to scale one Open Terminal instance
+horizontally, and `replicas` is fixed at 1. To run several workstations, add
+several `instances[]` entries.
+
+## What this chart deploys (per `instances[]` entry)
+
+- `StatefulSet` -- `open-terminal-<name>`, a single pod running the slim image
+  variant (pinned via `appVersion`) with the workspace at `/home/user`.
+  Ephemeral `emptyDir` by default, or a per-pod PVC via `volumeClaimTemplates`
+  when `persistence.enabled` is set.
+- `Service` (headless, governing) -- `open-terminal-<name>-h`, required by the
+  StatefulSet for stable pod identity. Not used for addressing (one pod only).
+- `Service` (ClusterIP) -- `open-terminal-<name>`, the single endpoint Open
+  WebUI points at: `http://open-terminal-<name>:8000`.
+- `CiliumNetworkPolicy` -- (enabled by default) egress default-deny
+  (air-gapped) and ingress only from the configured client pod on `:8000`.
+
+## Addressing a workstation from Open WebUI
+
+Every workstation is a single pod, addressed by its ClusterIP Service:
+
+```
+http://open-terminal-<name>:8000
+```
+
+Multiple workstations = multiple `instances[]` entries (each with its own
+`name`), not replicas.
 
 ## Prerequisites
 
@@ -52,15 +89,41 @@ Or with a local `values.yaml`:
 helm install open-terminal oci://ghcr.io/qaoru/helm-charts/open-terminal --version {{ .Version }} -f values.yaml
 ```
 
+### 3. Deploy several workstations
+
+```yaml
+instances:
+  - name: qa          # http://open-terminal-qa:8000
+    env:
+      OPEN_TERMINAL_FILE_BROWSER_ROOT: home
+
+  - name: data        # http://open-terminal-data:8000  (persistent)
+    persistence:
+      enabled: true
+      size: 20Gi
+      storageClass: nfs
+
+  - name: hardened    # http://open-terminal-hardened:8000
+    image:
+      tag: 0.12.3     # non-slim variant (runtime package installs)
+    runtimeClassName: kata
+    nodeSelector:
+      katacontainers.io/kata-runtime: "true"
+```
+
+To run N workstations, add N entries -- each gets its own name, config, and
+URL. (Do not try to scale a single workstation with replicas; Open Terminal is
+stateful and per-session state lives in pod memory.)
+
 ## Isolation / security posture
 
 | Layer | Choice |
 | --- | --- |
 | Image | slim variant (pinned via `appVersion`) -- no `sudo`, no runtime apt/pip/npm installs |
-| Storage | ephemeral `emptyDir` -- nothing persists across restarts |
+| Storage | ephemeral `emptyDir` by default (nothing persists across restarts); optional per-pod PVC via `persistence` |
 | Network | Cilium egress default-deny (air-gapped) + ingress only from the configured client |
 | Capabilities | all dropped except `CHOWN`/`SETUID`/`SETGID` (needed by the entrypoint's `gosu` privilege drop); no privilege escalation; seccomp `RuntimeDefault` |
-| Resources | CPU/memory requests+limits |
+| Resources | CPU/memory requests+limits per instance |
 
 The slim image starts as root only so its entrypoint can `chown` the workspace
 to UID 1000, then drops to `user` (UID 1000) via `gosu` with no sudo. We
@@ -76,9 +139,11 @@ to nodes where the runtime is installed (e.g. by
 KVM-capable workers `katacontainers.io/kata-runtime=true`):
 
 ```yaml
-runtimeClassName: kata
-nodeSelector:
-  katacontainers.io/kata-runtime: "true"
+instances:
+  - name: hardened
+    runtimeClassName: kata
+    nodeSelector:
+      katacontainers.io/kata-runtime: "true"
 ```
 
 A pod with `runtimeClassName: kata` can fail container creation if it lands on a
@@ -86,7 +151,8 @@ node without the runtime, hence the node selector.
 
 ## Network policy
 
-The embedded `CiliumNetworkPolicy` (enabled by default) air-gaps the agent:
+The embedded `CiliumNetworkPolicy` per instance (enabled by default) air-gaps
+the agent:
 
 - **egress**: fully denied. The agent can run commands, write files, and execute
   code, but cannot reach the internet, exfiltrate data, or talk to any other
@@ -104,13 +170,13 @@ elsewhere).
 
 ## One-time setup (Open WebUI)
 
-Add the connection **manually** in the Open WebUI admin UI once
-(`Settings` -> `Admin` -> `Integrations` -> `Open Terminal` -> `+`):
+Add **each** workstation connection **manually** in the Open WebUI admin UI
+once (`Settings` -> `Admin` -> `Integrations` -> `Open Terminal` -> `+`):
 
 | Field | Value |
 | --- | --- |
-| URL | `http://open-terminal:8000` |
-| API Key | `kubectl get secret open-terminal-api-key -o jsonpath='{.data.api-key}' \| base64 -d` |
+| URL | `http://open-terminal-<name>:8000` (see the addressing table above) |
+| API Key | `kubectl get secret <secret> -o jsonpath='{.data.<key>}' \| base64 -d` |
 | Auth Type | Bearer |
 | Chat Uploads | Default |
 
@@ -121,16 +187,16 @@ already-running instance the existing row wins and the env is ignored. Wiring it
 via the admin UI is the path that actually works here, and it's the docs'
 recommended approach.
 
-To restrict which users may use the terminal, edit the connection's access
+To restrict which users may use a workstation, edit the connection's access
 control in the same admin UI page.
 
 ## Verify
 
 ```bash
-kubectl get deploy open-terminal
-kubectl get svc open-terminal
-# from the client pod, check Open Terminal is reachable:
-kubectl exec deploy/<client> -- curl -s http://open-terminal:8000/health
+kubectl get sts -l app.kubernetes.io/part-of=open-terminal
+kubectl get svc -l app.kubernetes.io/part-of=open-terminal
+# from the client pod, check a workstation is reachable:
+kubectl exec deploy/<client> -- curl -s http://open-terminal-<name>:8000/health
 # expect: {"status":"ok"}
 ```
 

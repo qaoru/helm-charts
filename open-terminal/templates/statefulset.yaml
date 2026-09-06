@@ -1,0 +1,109 @@
+{{- if not .Values.instances }}
+{{- fail "open-terminal: at least one entry in `instances` is required" }}
+{{- end }}
+{{- range $inst := .Values.instances }}
+{{- if not $inst.name }}
+{{- fail "open-terminal: each entry in `instances` requires a `name` (DNS-safe, used in resource and Service names)" }}
+{{- end }}
+{{- $ctx := dict "root" $ "inst" $inst }}
+{{- $wsName := include "open-terminal.workstationName" $ctx }}
+{{- $img := mergeOverwrite (deepCopy $.Values.image) ($inst.image | default dict) }}
+{{- $apiKey := mergeOverwrite (deepCopy $.Values.apiKey) ($inst.apiKey | default dict) }}
+{{- $resources := $inst.resources | default $.Values.resources }}
+{{- $runtimeClass := $inst.runtimeClassName | default $.Values.runtimeClassName }}
+{{- $nodeSelector := $inst.nodeSelector | default $.Values.nodeSelector }}
+{{- $persistence := $inst.persistence | default dict }}
+{{- $workspace := $inst.workspace | default dict }}
+{{- $mountPath := $persistence.mountPath | default "/home/user" }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $wsName }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "open-terminal.workstationLabels" $ctx | nindent 4 }}
+spec:
+  serviceName: {{ $wsName }}-h
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "open-terminal.workstationSelectorLabels" $ctx | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "open-terminal.workstationSelectorLabels" $ctx | nindent 8 }}
+    spec:
+      {{- with $runtimeClass }}
+      runtimeClassName: {{ . | quote }}
+      {{- end }}
+      {{- with $nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: open-terminal
+          image: "{{ $img.repository }}:{{ $img.tag | default $.Chart.AppVersion }}"
+          imagePullPolicy: {{ $img.pullPolicy }}
+          {{- with $.Values.containerSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          env:
+            - name: OPEN_TERMINAL_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $apiKey.existingSecret | quote }}
+                  key: {{ $apiKey.key | quote }}
+            {{- range $k, $v := $inst.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          {{- with $resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: workspace
+              mountPath: {{ $mountPath | quote }}
+      {{- if not ($persistence.enabled | default false) }}
+      volumes:
+        - name: workspace
+          emptyDir:
+            sizeLimit: {{ $workspace.size | default "1Gi" | quote }}
+      {{- end }}
+  {{- if ($persistence.enabled | default false) }}
+  volumeClaimTemplates:
+    - metadata:
+        name: workspace
+      spec:
+        accessModes:
+          - {{ $persistence.accessMode | default "ReadWriteOnce" | quote }}
+        {{- with $persistence.storageClass }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ $persistence.size | default "10Gi" | quote }}
+  {{- end }}
+{{- end }}

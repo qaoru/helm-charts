@@ -10,33 +10,58 @@
 #     ships. The `:slim` variant tag is pinned via `appVersion` and kept slim
 #     by default. Use the floating `slim` or `latest` tag (much larger attack
 #     surface + sudo + Docker CLI) only if you need runtime package installs.
-#   - ephemeral workspace: an emptyDir at /home/user. Nothing persists across
-#     pod restarts -- no leftover data or secrets -- at the cost of losing work
-#     when the pod is reaped.
-#   - air-gapped network: an embedded CiliumNetworkPolicy (enabled by default)
-#     denies all egress and all ingress except the configured source -> :8000.
-#     The agent cannot reach the internet or any other in-cluster service.
+#   - ephemeral workspace by default: an emptyDir at /home/user. Nothing
+#     persists across pod restarts. Enable `persistence` per instance for a PVC
+#     when a workstation must keep state (then it is backed by a StatefulSet
+#     volumeClaimTemplate).
+#   - air-gapped network: an embedded CiliumNetworkPolicy per instance
+#     (enabled by default) denies all egress and all ingress except the
+#     configured source -> :8000. The agent cannot reach the internet or any
+#     other in-cluster service.
 #   - dropped capabilities (all but CHOWN/SETUID/SETGID), no privilege
 #     escalation, seccomp.
 #
-# Open WebUI reaches this instance at http://open-terminal:8000 (the Service is
-# named after the chart, regardless of the release name, so the DNS name is
-# stable). The connection is added once by hand in the Open WebUI admin UI (NOT
-# via an env var -- with ENABLE_PERSISTENT_CONFIG on, TERMINAL_SERVER_CONNECTIONS
-# only seeds a fresh DB and is ignored on an already-running instance). The API
-# key is provisioned by the owner in an existing Secret (key `api-key`); this
-# chart only references it. See README.md for the one-time setup.
+# == Multiple workstations ==
 #
-# The chart is namespace-agnostic: it deploys into `.Release.Namespace`. The
-# network policy defaults assume the Open WebUI deployment pattern (ingress from
-# the `open-webui` app in the release namespace); adjust `networkPolicy.ingress`
-# for a different source, or disable the policy entirely.
+# Open Terminal is a STATEFUL, in-process server: per-session cwd, background
+# command jobs, and interactive PTY terminals all live in pod memory (keyed by
+# the `x-session-id` header / server-generated IDs), with NO shared/external
+# store. That means replicas behind a single Service are NOT safe -- a request
+# that load-balances to a different pod loses the cwd, 404s background jobs, and
+# reconnects the terminal WebSocket into a fresh empty shell. K8s
+# `sessionAffinity: ClientIP` does not fix this (a pod restart nukes the
+# in-memory session, and behind the Open WebUI backend proxy every request
+# shares one client IP).
+#
+# So this chart treats each Open Terminal instance as a "workstation": a single
+# stateful endpoint a chat session binds to for its lifetime. The `instances`
+# list renders one StatefulSet + Services + NetworkPolicy per entry. Open WebUI
+# is configured with each workstation's URL by hand in the admin UI (NOT via an
+# env var -- with ENABLE_PERSISTENT_CONFIG on, TERMINAL_SERVER_CONNECTIONS only
+# seeds a fresh DB and is ignored on an already-running instance).
+#
+# == Addressing ==
+#
+#   http://open-terminal-<name>:8000
+#     (the ClusterIP Service `open-terminal-<name>` is created for each
+#     workstation; Open WebUI registers that URL once in the admin UI)
+#
+# Open Terminal is a stateful, in-process server (per-session cwd, background
+# command jobs, and interactive PTY terminals all live in pod memory with no
+# shared/external store), so a workstation is exactly one pod. To run several
+# workstations, add several `instances` entries -- each gets its own name,
+# config, and URL. `replicas` is fixed at 1 on purpose (see the README); there is
+# no safe way to scale a single workstation horizontally.
 
-# -- Number of pod replicas.
-replicaCount: 1
+# ---------------------------------------------------------------------------
+# Chart-wide defaults (inherited by every instance; an instance may override
+# `image`, `apiKey`, `runtimeClassName`, `nodeSelector`).
+# ---------------------------------------------------------------------------
 
 # -- Container image. `tag` defaults to the chart `appVersion` (a pinned
-# `X.Y.Z-slim` variant tag, kept up to date by Renovate).
+# `X.Y.Z-slim` variant tag, kept up to date by Renovate). An instance may
+# override `image` (e.g. a custom tag for a specific workstation) and the
+# per-instance value is merged over these defaults.
 image:
   # -- Container image repository.
   repository: ghcr.io/open-webui/open-terminal
@@ -45,52 +70,39 @@ image:
   # -- Image pull policy.
   pullPolicy: IfNotPresent
 
-# -- Pod RuntimeClass (e.g. `kata` for a hardware-isolated VM with its own
-# kernel). Empty/omitted by default. See README.md "Hardened deployment" for the
-# kata setup.
-runtimeClassName: ""
-
-# -- Node selector for the pod. Empty/omitted by default. When using the `kata`
-# RuntimeClass, pin to nodes labeled `katacontainers.io/kata-runtime=true` (where
-# kata-deploy installed the runtime); a pod with `runtimeClassName: kata` can
-# fail container creation if it lands on a node without the runtime.
-nodeSelector: {}
-
 # -- API key shared with Open WebUI (bearer auth). The owner creates the Secret
-# (key `api-key`); this chart never holds the key value.
+# (key `api-key`); this chart never holds the key value. An instance may
+# override `apiKey` to use a dedicated secret per workstation.
 apiKey:
   # -- Existing Secret holding the API key.
   existingSecret: open-terminal-api-key
   # -- Key inside the Secret.
   key: api-key
 
-# -- Container resource requests and limits.
-resources:
-  requests:
-    cpu: 100m
-    memory: 256Mi
-  limits:
-    cpu: "1"
-    memory: 1Gi
+# -- Pod RuntimeClass (e.g. `kata` for a hardware-isolated VM with its own
+# kernel). Empty/omitted by default. See README.md "Hardened deployment" for the
+# kata setup. An instance may override.
+runtimeClassName: ""
 
-# -- Ephemeral workspace: emptyDir mounted at /home/user. `size` is a soft cap
-# (sizeLimit triggers kubelet eviction when exceeded, not a hard quota). Nothing
-# persists across pod restarts.
-workspace:
-  # -- emptyDir sizeLimit for the workspace.
-  size: 1Gi
+# -- Node selector applied to every instance unless the instance sets its own
+# `nodeSelector`. When using the `kata` RuntimeClass, pin to nodes labeled
+# `katacontainers.io/kata-runtime=true` (where kata-deploy installed the
+# runtime); a pod with `runtimeClassName: kata` can fail container creation if
+# it lands on a node without the runtime.
+nodeSelector: {}
 
-# -- Pod security context. The slim image starts as root only so its
-# entrypoint can fix /home/user ownership, then drops to "user" (UID 1000) via
-# gosu with NO sudo. We therefore do NOT set runAsNonRoot here (it would break
-# the entrypoint's ownership fix / privilege drop). fsGroup: 1000 makes the
-# emptyDir group-writable by the app even before the entrypoint chown runs.
+# -- Pod security context (chart-wide; not overridable per instance). The slim
+# image starts as root only so its entrypoint can fix /home/user ownership, then
+# drops to "user" (UID 1000) via gosu with NO sudo. We therefore do NOT set
+# runAsNonRoot here (it would break the entrypoint's ownership fix / privilege
+# drop). fsGroup: 1000 makes the workspace group-writable by the app even
+# before the entrypoint chown runs.
 podSecurityContext:
   seccompProfile:
     type: RuntimeDefault
   fsGroup: 1000
 
-# -- Container security context.
+# -- Container security context (chart-wide; not overridable per instance).
 containerSecurityContext:
   allowPrivilegeEscalation: false
   capabilities:
@@ -112,36 +124,109 @@ containerSecurityContext:
   # files across the filesystem, not only under /home/user.
   readOnlyRootFilesystem: false
 
-# -- Open Terminal app env (beyond OPEN_TERMINAL_API_KEY, which comes from the
-# secret). host/port have NO env vars -- the app defaults to 0.0.0.0:8000,
-# which is what we want. Slim has no runtime package installs and we rely on
-# the Cilium egress default-deny for network isolation, so Open Terminal's own
-# in-container iptables egress firewall (which would need NET_ADMIN) is unused.
-env:
-  # -- UI hint only (does not restrict commands): report /home/user as the root.
-  OPEN_TERMINAL_FILE_BROWSER_ROOT: home
+# ---------------------------------------------------------------------------
+# Workstations. Each list entry renders a StatefulSet (a single pod), a
+# headless governing Service (`open-terminal-<name>-h`, required by the
+# StatefulSet for stable identity), a ClusterIP Service (`open-terminal-
+# <name>`, the URL Open WebUI points at), and a CiliumNetworkPolicy. A
+# workstation is exactly one pod -- `replicas` is fixed at 1 (multiple
+# workstations = multiple `instances` entries, not `replicaCount`).
+# ---------------------------------------------------------------------------
 
-# -- Embedded network isolation. Enabled by default with a Cilium egress
-# default-deny (air-gapped) and ingress limited to the configured source. The
-# agent can run commands, write files, and execute code, but cannot reach the
-# internet, exfiltrate data, or talk to any other in-cluster service. Reply
-# traffic for the allowed source -> :8000 flow is statefully permitted by
-# Cilium, so the proxy keeps working under egress default-deny. Kubelet
-# liveness/readiness probes on /health are auto-allowed by Cilium
-# (reserved:host / local-host ingress), so they need no rule here.
-networkPolicy:
-  # -- Enable the embedded network policy.
-  enabled: true
-  # -- Network policy flavor. Only `cilium` is implemented.
-  flavor: cilium
-  # -- Ingress rules: allow the configured source to reach the Open Terminal
-  # port.
-  ingress:
-    # -- Namespace of the allowed client pod (defaults to the release
-    # namespace when empty).
-    fromNamespace: ""
-    # -- `app.kubernetes.io/name` label of the allowed client pod. Defaults to
-    # `open-webui` (the Open WebUI deployment pattern).
-    fromName: open-webui
-    # -- Port the client reaches (Open Terminal listening port).
-    port: 8000
+# -- Workstations to deploy. `name` is required and must be DNS-safe (it
+# becomes part of every resource name and the Service DNS name). At least one
+# instance is required.
+instances:
+  - # -- Workstation name (DNS-safe). Becomes `open-terminal-<name>` in all
+    # resource names and the Service DNS name Open WebUI points at.
+    name: default
+
+    # -- Container image override (merged over the chart-wide `image`). Omit to
+    # inherit; set `tag` to pin a specific variant per workstation.
+    image: {}
+
+    # -- API key override (merged over the chart-wide `apiKey`). Omit to share
+    # one secret across all workstations; set to a dedicated secret for this
+    # workstation.
+    apiKey: {}
+
+    # -- RuntimeClass override (inherits the chart-wide value when empty).
+    runtimeClassName: ""
+
+    # -- Node selector for this workstation (inherits the chart-wide
+    # `nodeSelector` when empty).
+    nodeSelector: {}
+
+    # -- Open Terminal app env for this workstation (beyond
+    # OPEN_TERMINAL_API_KEY, which comes from the secret). host/port have NO
+    # env vars -- the app defaults to 0.0.0.0:8000, which is what we want. Slim
+    # has no runtime package installs and we rely on the Cilium egress
+    # default-deny for network isolation, so Open Terminal's own in-container
+    # iptables egress firewall (which would need NET_ADMIN) is unused.
+    env:
+      # -- UI hint only (does not restrict commands): report /home/user as the root.
+      OPEN_TERMINAL_FILE_BROWSER_ROOT: home
+
+    # -- Container resource requests and limits.
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
+
+    # -- Workspace storage at /home/user. When `persistence.enabled` is false
+    # an ephemeral emptyDir is used (sizeLimit is a soft cap: it triggers
+    # kubelet eviction when exceeded, not a hard quota; nothing persists across
+    # pod restarts). When true a StatefulSet volumeClaimTemplate provisions a
+    # PVC per pod.
+    workspace:
+      # -- emptyDir sizeLimit for the workspace (used when persistence is off).
+      size: 1Gi
+
+    # -- Persistent workspace. When enabled, a StatefulSet
+    # volumeClaimTemplate provisions a PVC per pod (one per replica ordinal),
+    # so stateful workstations keep their /home/user across restarts and
+    # rolling updates. Disabled by default (ephemeral sandbox).
+    persistence:
+      # -- Provision a PVC for the workspace.
+      enabled: false
+      # -- PVC size.
+      size: 10Gi
+      # -- StorageClass (empty = cluster default).
+      storageClass: ""
+      # -- Access mode. `ReadWriteOnce` for a single-node workstation; use
+      # `ReadWriteMany` only with a shared filesystem (NFS, etc.); a
+      # workstation is one pod, so a single PVC writer is the only mode.
+      accessMode: ReadWriteOnce
+      # -- Where the workspace is mounted. Open Terminal expects /home/user
+      # (single-user mode) or /home (multi-user mode). Change only if you run
+      # OPEN_TERMINAL_MULTI_USER=true, which needs the `latest` image.
+      mountPath: /home/user
+
+    # -- Embedded network isolation for this workstation. Enabled by default
+    # with a Cilium egress default-deny (air-gapped) and ingress limited to the
+    # configured source. The agent can run commands, write files, and execute
+    # code, but cannot reach the internet, exfiltrate data, or talk to any
+    # other in-cluster service. Reply traffic for the allowed source -> :8000
+    # flow is statefully permitted by Cilium, so the proxy keeps working under
+    # egress default-deny. Kubelet liveness/readiness probes on /health are
+    # auto-allowed by Cilium (reserved:host / local-host ingress), so they need
+    # no rule here.
+    networkPolicy:
+      # -- Enable the embedded network policy.
+      enabled: true
+      # -- Network policy flavor. Only `cilium` is implemented.
+      flavor: cilium
+      # -- Ingress rules: allow the configured source to reach the Open Terminal
+      # port.
+      ingress:
+        # -- Namespace of the allowed client pod (defaults to the release
+        # namespace when empty).
+        fromNamespace: ""
+        # -- `app.kubernetes.io/name` label of the allowed client pod. Defaults
+        # to `open-webui` (the Open WebUI deployment pattern).
+        fromName: open-webui
+        # -- Port the client reaches (Open Terminal listening port).
+        port: 8000
