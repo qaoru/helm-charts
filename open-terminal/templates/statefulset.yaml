@@ -10,8 +10,16 @@
 {{- $img := mergeOverwrite (deepCopy $.Values.image) ($inst.image | default dict) }}
 {{- $apiKey := mergeOverwrite (deepCopy $.Values.apiKey) ($inst.apiKey | default dict) }}
 {{- $resources := $inst.resources | default $.Values.resources }}
-{{- $runtimeClass := $inst.runtimeClassName | default $.Values.runtimeClassName }}
-{{- $nodeSelector := $inst.nodeSelector | default $.Values.nodeSelector }}
+{{- /* Instance-level runtimeClassName / nodeSelector override the chart-wide
+     defaults when PRESENT -- including an explicit empty value ("" / {}), which
+     means "no runtime class / no node selector for this workstation". An
+     instance that OMITS the key inherits the chart-wide default. hasKey
+     distinguishes "unset" from an explicit empty, which Sprig's `default`
+     cannot (it treats "" and {} as empty and would fall back). */ -}}
+{{- $runtimeClass := $.Values.runtimeClassName }}
+{{- if hasKey $inst "runtimeClassName" }}{{- $runtimeClass = $inst.runtimeClassName }}{{- end }}
+{{- $nodeSelector := $.Values.nodeSelector }}
+{{- if hasKey $inst "nodeSelector" }}{{- $nodeSelector = $inst.nodeSelector }}{{- end }}
 {{- $persistence := $inst.persistence | default dict }}
 {{- $workspace := $inst.workspace | default dict }}
 {{- $mountPath := $persistence.mountPath | default "/home/user" }}

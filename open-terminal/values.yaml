@@ -80,15 +80,17 @@ apiKey:
   key: api-key
 
 # -- Pod RuntimeClass (e.g. `kata` for a hardware-isolated VM with its own
-# kernel). Empty/omitted by default. See README.md "Hardened deployment" for the
-# kata setup. An instance may override.
+# kernel). Empty/omitted by default. See README.md "Hardened deployment" for
+# the kata setup. An instance may override this (including setting it to `""`
+# to drop a chart-wide kata setting for that workstation).
 runtimeClassName: ""
 
-# -- Node selector applied to every instance unless the instance sets its own
+# -- Node selector applied to every instance that does not set its own
 # `nodeSelector`. When using the `kata` RuntimeClass, pin to nodes labeled
 # `katacontainers.io/kata-runtime=true` (where kata-deploy installed the
 # runtime); a pod with `runtimeClassName: kata` can fail container creation if
-# it lands on a node without the runtime.
+# it lands on a node without the runtime. An instance may override this
+# (including setting `nodeSelector: {}` to drop a chart-wide pin).
 nodeSelector: {}
 
 # -- Pod security context (chart-wide; not overridable per instance). The slim
@@ -150,12 +152,12 @@ instances:
     # workstation.
     apiKey: {}
 
-    # -- RuntimeClass override (inherits the chart-wide value when empty).
-    runtimeClassName: ""
-
-    # -- Node selector for this workstation (inherits the chart-wide
-    # `nodeSelector` when empty).
-    nodeSelector: {}
+    # RuntimeClass / node selector override: OMIT to inherit the chart-wide
+    # value; SET (including an explicit empty `""` / `{}`) to override it for
+    # this workstation. e.g. to drop a chart-wide `kata` setting from one
+    # instance, set `runtimeClassName: ""` and `nodeSelector: {}` on it. Sprig's
+    # `default` cannot express "explicit empty" (it treats "" and {} as empty),
+    # so the templates use hasKey -- a present key always wins, even when empty.
 
     # -- Open Terminal app env for this workstation (beyond
     # OPEN_TERMINAL_API_KEY, which comes from the secret). host/port have NO

@@ -139,15 +139,26 @@ to nodes where the runtime is installed (e.g. by
 KVM-capable workers `katacontainers.io/kata-runtime=true`):
 
 ```yaml
+runtimeClassName: kata
+nodeSelector:
+  katacontainers.io/kata-runtime: "true"
+
 instances:
-  - name: hardened
-    runtimeClassName: kata
-    nodeSelector:
-      katacontainers.io/kata-runtime: "true"
+  - name: hardened      # inherits chart-wide kata
+  - name: plain         # overrides to run on the host kernel instead
+    runtimeClassName: ""
+    nodeSelector: {}
 ```
 
 A pod with `runtimeClassName: kata` can fail container creation if it lands on a
 node without the runtime, hence the node selector.
+
+`runtimeClassName` and `nodeSelector` follow the **omit = inherit, present =
+override** rule: an instance that omits them inherits the chart-wide value,
+while an instance that sets them (including an explicit empty `""` / `{}`)
+overrides the chart-wide value for that workstation. So you can set `kata`
+chart-wide and drop it from a single instance with `runtimeClassName: ""` +
+`nodeSelector: {}`, as above.
 
 ## Network policy
 

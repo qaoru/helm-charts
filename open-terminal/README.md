@@ -139,15 +139,26 @@ to nodes where the runtime is installed (e.g. by
 KVM-capable workers `katacontainers.io/kata-runtime=true`):
 
 ```yaml
+runtimeClassName: kata
+nodeSelector:
+  katacontainers.io/kata-runtime: "true"
+
 instances:
-  - name: hardened
-    runtimeClassName: kata
-    nodeSelector:
-      katacontainers.io/kata-runtime: "true"
+  - name: hardened      # inherits chart-wide kata
+  - name: plain         # overrides to run on the host kernel instead
+    runtimeClassName: ""
+    nodeSelector: {}
 ```
 
 A pod with `runtimeClassName: kata` can fail container creation if it lands on a
 node without the runtime, hence the node selector.
+
+`runtimeClassName` and `nodeSelector` follow the **omit = inherit, present =
+override** rule: an instance that omits them inherits the chart-wide value,
+while an instance that sets them (including an explicit empty `""` / `{}`)
+overrides the chart-wide value for that workstation. So you can set `kata`
+chart-wide and drop it from a single instance with `runtimeClassName: ""` +
+`nodeSelector: {}`, as above.
 
 ## Network policy
 
@@ -212,7 +223,7 @@ kubectl exec deploy/<client> -- curl -s http://open-terminal-<name>:8000/health
 | image.pullPolicy | string | `"IfNotPresent"` | Image pull policy. |
 | image.repository | string | `"ghcr.io/open-webui/open-terminal"` | Container image repository. |
 | image.tag | string | `nil` | Container image tag (defaults to Chart appVersion). |
-| instances | list | `[{"apiKey":{},"env":{"OPEN_TERMINAL_FILE_BROWSER_ROOT":"home"},"image":{},"name":"default","networkPolicy":{"enabled":true,"flavor":"cilium","ingress":{"fromName":"open-webui","fromNamespace":"","port":8000}},"nodeSelector":{},"persistence":{"accessMode":"ReadWriteOnce","enabled":false,"mountPath":"/home/user","size":"10Gi","storageClass":""},"resources":{"limits":{"cpu":"1","memory":"1Gi"},"requests":{"cpu":"100m","memory":"256Mi"}},"runtimeClassName":"","workspace":{"size":"1Gi"}}]` | Workstations to deploy. `name` is required and must be DNS-safe (it becomes part of every resource name and the Service DNS name). At least one instance is required. |
+| instances | list | `[{"apiKey":{},"env":{"OPEN_TERMINAL_FILE_BROWSER_ROOT":"home"},"image":{},"name":"default","networkPolicy":{"enabled":true,"flavor":"cilium","ingress":{"fromName":"open-webui","fromNamespace":"","port":8000}},"persistence":{"accessMode":"ReadWriteOnce","enabled":false,"mountPath":"/home/user","size":"10Gi","storageClass":""},"resources":{"limits":{"cpu":"1","memory":"1Gi"},"requests":{"cpu":"100m","memory":"256Mi"}},"workspace":{"size":"1Gi"}}]` | Workstations to deploy. `name` is required and must be DNS-safe (it becomes part of every resource name and the Service DNS name). At least one instance is required. |
 | instances[0].apiKey | object | `{}` | API key override (merged over the chart-wide `apiKey`). Omit to share one secret across all workstations; set to a dedicated secret for this workstation. |
 | instances[0].env | object | `{"OPEN_TERMINAL_FILE_BROWSER_ROOT":"home"}` | Open Terminal app env for this workstation (beyond OPEN_TERMINAL_API_KEY, which comes from the secret). host/port have NO env vars -- the app defaults to 0.0.0.0:8000, which is what we want. Slim has no runtime package installs and we rely on the Cilium egress default-deny for network isolation, so Open Terminal's own in-container iptables egress firewall (which would need NET_ADMIN) is unused. |
 | instances[0].env.OPEN_TERMINAL_FILE_BROWSER_ROOT | string | `"home"` | UI hint only (does not restrict commands): report /home/user as the root. |
@@ -225,7 +236,6 @@ kubectl exec deploy/<client> -- curl -s http://open-terminal-<name>:8000/health
 | instances[0].networkPolicy.ingress.fromName | string | `"open-webui"` | `app.kubernetes.io/name` label of the allowed client pod. Defaults to `open-webui` (the Open WebUI deployment pattern). |
 | instances[0].networkPolicy.ingress.fromNamespace | string | `""` | Namespace of the allowed client pod (defaults to the release namespace when empty). |
 | instances[0].networkPolicy.ingress.port | int | `8000` | Port the client reaches (Open Terminal listening port). |
-| instances[0].nodeSelector | object | `{}` | Node selector for this workstation (inherits the chart-wide `nodeSelector` when empty). |
 | instances[0].persistence | object | `{"accessMode":"ReadWriteOnce","enabled":false,"mountPath":"/home/user","size":"10Gi","storageClass":""}` | Persistent workspace. When enabled, a StatefulSet volumeClaimTemplate provisions a PVC per pod (one per replica ordinal), so stateful workstations keep their /home/user across restarts and rolling updates. Disabled by default (ephemeral sandbox). |
 | instances[0].persistence.accessMode | string | `"ReadWriteOnce"` | Access mode. `ReadWriteOnce` for a single-node workstation; use `ReadWriteMany` only with a shared filesystem (NFS, etc.); a workstation is one pod, so a single PVC writer is the only mode. |
 | instances[0].persistence.enabled | bool | `false` | Provision a PVC for the workspace. |
@@ -233,9 +243,8 @@ kubectl exec deploy/<client> -- curl -s http://open-terminal-<name>:8000/health
 | instances[0].persistence.size | string | `"10Gi"` | PVC size. |
 | instances[0].persistence.storageClass | string | `""` | StorageClass (empty = cluster default). |
 | instances[0].resources | object | `{"limits":{"cpu":"1","memory":"1Gi"},"requests":{"cpu":"100m","memory":"256Mi"}}` | Container resource requests and limits. |
-| instances[0].runtimeClassName | string | `""` | RuntimeClass override (inherits the chart-wide value when empty). |
 | instances[0].workspace | object | `{"size":"1Gi"}` | Workspace storage at /home/user. When `persistence.enabled` is false an ephemeral emptyDir is used (sizeLimit is a soft cap: it triggers kubelet eviction when exceeded, not a hard quota; nothing persists across pod restarts). When true a StatefulSet volumeClaimTemplate provisions a PVC per pod. |
 | instances[0].workspace.size | string | `"1Gi"` | emptyDir sizeLimit for the workspace (used when persistence is off). |
-| nodeSelector | object | `{}` | Node selector applied to every instance unless the instance sets its own `nodeSelector`. When using the `kata` RuntimeClass, pin to nodes labeled `katacontainers.io/kata-runtime=true` (where kata-deploy installed the runtime); a pod with `runtimeClassName: kata` can fail container creation if it lands on a node without the runtime. |
+| nodeSelector | object | `{}` | Node selector applied to every instance that does not set its own `nodeSelector`. When using the `kata` RuntimeClass, pin to nodes labeled `katacontainers.io/kata-runtime=true` (where kata-deploy installed the runtime); a pod with `runtimeClassName: kata` can fail container creation if it lands on a node without the runtime. An instance may override this (including setting `nodeSelector: {}` to drop a chart-wide pin). |
 | podSecurityContext | object | `{"fsGroup":1000,"seccompProfile":{"type":"RuntimeDefault"}}` | Pod security context (chart-wide; not overridable per instance). The slim image starts as root only so its entrypoint can fix /home/user ownership, then drops to "user" (UID 1000) via gosu with NO sudo. We therefore do NOT set runAsNonRoot here (it would break the entrypoint's ownership fix / privilege drop). fsGroup: 1000 makes the workspace group-writable by the app even before the entrypoint chown runs. |
-| runtimeClassName | string | `""` | Pod RuntimeClass (e.g. `kata` for a hardware-isolated VM with its own kernel). Empty/omitted by default. See README.md "Hardened deployment" for the kata setup. An instance may override. |
+| runtimeClassName | string | `""` | Pod RuntimeClass (e.g. `kata` for a hardware-isolated VM with its own kernel). Empty/omitted by default. See README.md "Hardened deployment" for the kata setup. An instance may override this (including setting it to `""` to drop a chart-wide kata setting for that workstation). |
