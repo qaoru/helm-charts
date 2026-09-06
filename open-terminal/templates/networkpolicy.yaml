@@ -2,7 +2,12 @@
 {{- $ctx := dict "root" $ "inst" $inst }}
 {{- $wsName := include "open-terminal.workstationName" $ctx }}
 {{- $np := $inst.networkPolicy | default dict }}
-{{- if ($np.enabled | default true) }}
+{{- /* Respect an explicit `enabled: false`. Sprig's `default` treats `false` as
+     empty, so `($np.enabled | default true)` would render the policy even when
+     disabled -- use hasKey to distinguish "unset" (default true) from "false". */ -}}
+{{- $npEnabled := true }}
+{{- if hasKey $np "enabled" }}{{- $npEnabled = $np.enabled }}{{- end }}
+{{- if $npEnabled }}
 {{- $flavor := $np.flavor | default "cilium" }}
 {{- if eq $flavor "cilium" }}
 {{- $ingress := $np.ingress | default dict }}
