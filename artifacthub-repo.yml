@@ -1,18 +1,4 @@
-# Artifact Hub repository metadata
-# https://artifacthub.io/docs/topics/repositories/
-#
-# This file is published to the OCI registry as a special artifact on the
-# `artifacthub.io` tag (see .github/workflows/release.yaml) so that Artifact Hub
-# can read it from the OCI repository.
-#
-# Ownership claim: only the `owners` section below is required. The requesting
-# user must appear in this list, and the email must match the one used to sign
-# in to Artifact Hub.
-#
-# Verified publisher: uncomment `repositoryID` and paste the ID shown on your
-# repository's card in the Artifact Hub control panel:
-#   https://artifacthub.io/control-panel/repositories
-repositoryID: 16857b04-6974-46f6-8ede-837fe7bec7a5
+repositoryID: cbb3cacf-84c7-437e-8821-b2ce50d98920
 owners:
   - name: qaoru
     email: paul@qaoru.fr
