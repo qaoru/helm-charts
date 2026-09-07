@@ -3,6 +3,45 @@ entries:
   open-terminal:
   - annotations:
       artifacthub.io/changes: |
+        - kind: changed
+          description: Update open-terminal image to 0.12.4-slim
+      artifacthub.io/images: |-
+        - name: open-terminal
+          image: ghcr.io/open-webui/open-terminal:0.12.4-slim
+      artifacthub.io/links: |
+        - name: Open Terminal (upstream)
+          url: https://github.com/open-webui/open-terminal
+        - name: Source repository
+          url: https://github.com/qaoru/helm-charts/tree/main/open-terminal
+      artifacthub.io/maintainers: |
+        - name: qaoru
+          email: paul@qaoru.fr
+    apiVersion: v2
+    appVersion: 0.12.4-slim
+    created: "2026-09-07T11:12:53.585911995Z"
+    description: Multiple Open Terminal workstations for Open WebUI -- the agent execution
+      sandbox Open WebUI drives from chat -- each a stateful, individually-addressable
+      endpoint with optional Cilium air-gapped network isolation and optional persistent
+      workspace.
+    digest: 86d798955eb5880d27a42ffe59f159675aa1d90a2a9f9420bfcfc01b94756531
+    home: https://github.com/qaoru/helm-charts/tree/main/open-terminal
+    icon: https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/open-webui.svg
+    keywords:
+    - open-webui
+    - open-terminal
+    - agent
+    - sandbox
+    - terminal
+    maintainers:
+    - email: paul@qaoru.fr
+      name: qaoru
+    name: open-terminal
+    type: application
+    urls:
+    - https://github.com/qaoru/helm-charts/releases/download/open-terminal-0.2.3/open-terminal-0.2.3.tgz
+    version: 0.2.3
+  - annotations:
+      artifacthub.io/changes: |
         - kind: added
           description: Add `values.schema.json` for input validation (rejects unknown keys, bad enums, non-DNS instance names, and malformed instances before install).
       artifacthub.io/images: |-
@@ -246,4 +285,4 @@ entries:
     urls:
     - https://github.com/qaoru/helm-charts/releases/download/unifi-1.1.1/unifi-1.1.1.tgz
     version: 1.1.1
-generated: "2026-09-06T15:08:16.346124602Z"
+generated: "2026-09-07T11:12:53.955481583Z"
