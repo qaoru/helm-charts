@@ -4,6 +4,45 @@ entries:
   - annotations:
       artifacthub.io/changes: |
         - kind: changed
+          description: Update open-terminal image to 0.13.0-slim
+      artifacthub.io/images: |-
+        - name: open-terminal
+          image: ghcr.io/open-webui/open-terminal:0.13.0-slim
+      artifacthub.io/links: |
+        - name: Open Terminal (upstream)
+          url: https://github.com/open-webui/open-terminal
+        - name: Source repository
+          url: https://github.com/qaoru/helm-charts/tree/main/open-terminal
+      artifacthub.io/maintainers: |
+        - name: qaoru
+          email: paul@qaoru.fr
+    apiVersion: v2
+    appVersion: 0.13.0-slim
+    created: "2026-09-14T17:13:14.428542958Z"
+    description: Multiple Open Terminal workstations for Open WebUI -- the agent execution
+      sandbox Open WebUI drives from chat -- each a stateful, individually-addressable
+      endpoint with optional Cilium air-gapped network isolation and optional persistent
+      workspace.
+    digest: 6ad38aae3ff957c41eee47026ea34988c4d1e020a1afb5cddfa3e3e70b87363f
+    home: https://github.com/qaoru/helm-charts/tree/main/open-terminal
+    icon: https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/open-webui.svg
+    keywords:
+    - open-webui
+    - open-terminal
+    - agent
+    - sandbox
+    - terminal
+    maintainers:
+    - email: paul@qaoru.fr
+      name: qaoru
+    name: open-terminal
+    type: application
+    urls:
+    - https://github.com/qaoru/helm-charts/releases/download/open-terminal-0.2.4/open-terminal-0.2.4.tgz
+    version: 0.2.4
+  - annotations:
+      artifacthub.io/changes: |
+        - kind: changed
           description: Update open-terminal image to 0.12.4-slim
       artifacthub.io/images: |-
         - name: open-terminal
@@ -285,4 +324,4 @@ entries:
     urls:
     - https://github.com/qaoru/helm-charts/releases/download/unifi-1.1.1/unifi-1.1.1.tgz
     version: 1.1.1
-generated: "2026-09-07T11:12:53.955481583Z"
+generated: "2026-09-14T17:13:14.908176667Z"
