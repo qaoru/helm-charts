@@ -1,8 +1,8 @@
 # unifi
 
-![Version: 1.1.2](https://img.shields.io/badge/Version-1.1.2-informational?style=flat-square)
+![Version: 1.1.3](https://img.shields.io/badge/Version-1.1.3-informational?style=flat-square)
 ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square)
-![AppVersion: 10.6.101-ls144](https://img.shields.io/badge/AppVersion-10.6.101-ls144-informational?style=flat-square)
+![AppVersion: 10.6.101-ls145](https://img.shields.io/badge/AppVersion-10.6.101-ls145-informational?style=flat-square)
 
 The unifi software is a powerful, enterprise wireless software engine ideal for high-density client deployments requiring low latency and high uptime performance.
 
@@ -30,7 +30,7 @@ kubectl create secret generic unifi-db-credentials \
 ### 2. Install the chart
 
 ```bash
-helm install unifi oci://ghcr.io/qaoru/helm-charts/unifi --version 1.1.2 \
+helm install unifi oci://ghcr.io/qaoru/helm-charts/unifi --version 1.1.3 \
   --set database.host=<your-mongodb-host> \
   --set database.credentials.generate=true
 ```
@@ -38,7 +38,7 @@ helm install unifi oci://ghcr.io/qaoru/helm-charts/unifi --version 1.1.2 \
 Or with a local `values.yaml`:
 
 ```bash
-helm install unifi oci://ghcr.io/qaoru/helm-charts/unifi --version 1.1.2 -f values.yaml
+helm install unifi oci://ghcr.io/qaoru/helm-charts/unifi --version 1.1.3 -f values.yaml
 ```
 
 ## Configuration
@@ -83,10 +83,11 @@ Data is persisted at `/config` via a StatefulSet `volumeClaimTemplate` (default 
 | affinity | object | `{}` | Affinity rules for pod scheduling |
 | containerSecurityContext | string | `nil` | Security context for the main container (defaults to none) |
 | database | object | `{"authSource":"admin","credentials":{"generate":false,"passwordKey":"password","secretName":"unifi-db-credentials","usernameKey":"username"},"dbName":"unifi","host":"mongodb","initCredentials":{"passwordKey":"admin-password","secretName":"unifi-db-credentials","usernameKey":"admin-username"},"initImage":{"pullPolicy":"IfNotPresent","repository":"mongo","tag":"7.0-jammy"},"port":27017}` | MongoDB connection settings |
-| env | object | `{"PGID":"1000","PUID":"1000","TZ":"Europe/Paris"}` | Environment variables for the UniFi container |
+| env | object | `{"EXTRA_ARGS":"","PGID":"1000","PUID":"1000","TZ":"Europe/Paris"}` | Environment variables for the UniFi container |
 | extraEnv | list | `[]` | Additional environment variables as a list of {name, value} objects |
 | extraVolumeMounts | list | `[]` | Extra volume mounts for the main container |
 | extraVolumes | list | `[]` | Extra volumes for the pod |
+| fullnameOverride | string | `""` | Fully override the resource name prefix |
 | image | object | `{"pullPolicy":"IfNotPresent","repository":"linuxserver/unifi-network-application","tag":null}` | Image configuration |
 | ingress | object | `{"annotations":{"server-ssl":"true"},"className":"","enabled":false,"hosts":[{"host":"unifi.example.com","paths":[{"path":"/","pathType":"Prefix"}]}],"tls":[]}` | Ingress configuration |
 | initContainerResources | string | `nil` | Resources for the init container (defaults to none) |
@@ -96,6 +97,7 @@ Data is persisted at `/config` via a StatefulSet `volumeClaimTemplate` (default 
 | metrics.unifiCredentials.passwordKey | string | `"password"` |  |
 | metrics.unifiCredentials.secretName | string | `"unifi-metrics-credentials"` |  |
 | metrics.unifiCredentials.usernameKey | string | `"username"` |  |
+| nameOverride | string | `""` | Override the chart name (used in resource names) |
 | networkPolicy | object | `{"cilium":{"egress":[{"toFQDNs":[{"matchName":"fw-update.ubnt.com"},{"matchName":"fw-download.ubnt.com"}]},{"toEndpoints":[{"matchLabels":{"k8s:io.kubernetes.pod.namespace":"kube-system","k8s:k8s-app":"kube-dns"}}],"toPorts":[{"ports":[{"port":"53","protocol":"UDP"},{"port":"53","protocol":"TCP"}],"rules":{"dns":[{"matchName":"fw-update.ubnt.com"},{"matchName":"fw-download.ubnt.com"}]}}]}],"ingress":[{"toPorts":[{"ports":[{"port":"http-inform"}]}]}]},"egress":{},"enabled":false,"flavor":"kubernetes","ingress":[{"ports":[{"port":"http-inform","protocol":"TCP"}]}]}` | Network policy configuration |
 | nodeSelector | object | `{}` | Node selector for pod scheduling |
 | persistence | object | `{"accessModes":["ReadWriteOnce"],"annotations":{},"enabled":true,"size":"5Gi","storageClass":""}` | Persistence configuration for /config |
@@ -108,7 +110,7 @@ Data is persisted at `/config` via a StatefulSet `volumeClaimTemplate` (default 
 | resources | object | `{"limits":{"memory":"2Gi"},"requests":{"cpu":"200m","memory":"256Mi"}}` | Resource requests and limits |
 | revisionHistoryLimit | int | `3` | Number of revisions to keep in history |
 | serviceAccount | object | `{"annotations":{},"automount":false,"create":true,"name":""}` | Service account configuration |
-| services | object | `{"internal":{"annotations":{},"enablePorts":{"discovery":false,"guest-http":false,"guest-https":false,"http-inform":false,"https-ui":true,"speedtest":false,"stun":false,"syslog":false},"enabled":true,"loadBalancerIP":"","type":"ClusterIP"},"public":{"annotations":{},"enablePorts":{"discovery":true,"guest-http":true,"guest-https":true,"http-inform":true,"https-ui":false,"speedtest":true,"stun":true,"syslog":true},"enabled":false,"loadBalancerIP":"","type":"LoadBalancer"}}` | Service definitions |
+| services | object | `{"internal":{"annotations":{},"enablePorts":{"discovery":false,"guest-http":false,"guest-https":false,"http-inform":false,"https-ui":true,"speedtest":false,"stun":false,"syslog":false},"enabled":true,"loadBalancerIP":"","type":"ClusterIP"},"public":{"allocateLoadBalancerNodePorts":true,"annotations":{},"clusterIP":"","enablePorts":{"discovery":true,"guest-http":true,"guest-https":true,"http-inform":true,"https-ui":false,"speedtest":true,"stun":true,"syslog":true},"enabled":false,"externalIPs":[],"externalTrafficPolicy":"Local","loadBalancerIP":"","loadBalancerSourceRanges":[],"type":"LoadBalancer"}}` | Service definitions |
 | tolerations | list | `[]` | Tolerations for pod scheduling |
 | unpoller.extraEnv[0].name | string | `"UP_UNIFI_CONTROLLER_0_URL"` |  |
 | unpoller.extraEnv[0].value | string | `"https://unifiunpoller:8443"` |  |
