@@ -1,3 +1,8 @@
+# -- Override the chart name (used in resource names)
+nameOverride: ""
+# -- Fully override the resource name prefix
+fullnameOverride: ""
+
 # -- Image configuration
 image:
   ## -- Container image repository
@@ -15,6 +20,8 @@ env:
   PGID: "1000"
   ## -- Timezone
   TZ: "Europe/Paris"
+  ## -- Extra arguments passed to the UniFi process
+  EXTRA_ARGS: ""
 
 # -- Additional environment variables as a list of {name, value} objects
 extraEnv: []
@@ -239,6 +246,16 @@ services:
     annotations: {}
     ## -- Load balancer IP
     loadBalancerIP: ""
+    ## -- Restrict client IPs that can reach the LoadBalancer (CIDR list)
+    loadBalancerSourceRanges: []
+    ## -- Whether to allocate node ports for the LoadBalancer
+    allocateLoadBalancerNodePorts: true
+    ## -- External traffic routing policy (Cluster or Local)
+    externalTrafficPolicy: Local
+    ## -- External IPs exposed by the service
+    externalIPs: []
+    ## -- ClusterIP to assign (ClusterIP services only)
+    clusterIP: ""
     ## -- Ports to enable (must match podPorts keys)
     enablePorts:
       https-ui: false
