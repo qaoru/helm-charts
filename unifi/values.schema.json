@@ -4,6 +4,8 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
+    "nameOverride": { "type": "string", "description": "Override the chart name used in resource names." },
+    "fullnameOverride": { "type": "string", "description": "Fully override the resource name prefix." },
     "image": {
       "type": "object",
       "additionalProperties": false,
@@ -22,7 +24,8 @@
       "properties": {
         "PUID": { "type": "string" },
         "PGID": { "type": "string" },
-        "TZ": { "type": "string" }
+        "TZ": { "type": "string" },
+        "EXTRA_ARGS": { "type": "string", "description": "Extra arguments passed to the UniFi process." }
       }
     },
     "extraEnv": {
@@ -258,6 +261,29 @@
         },
         "annotations": { "type": "object", "additionalProperties": { "type": "string" } },
         "loadBalancerIP": { "type": "string" },
+        "loadBalancerSourceRanges": {
+          "type": "array",
+          "description": "Restrict client IPs that can reach a LoadBalancer service (CIDR list).",
+          "items": { "type": "string" }
+        },
+        "allocateLoadBalancerNodePorts": {
+          "type": "boolean",
+          "description": "Whether to allocate node ports for a LoadBalancer service."
+        },
+        "externalTrafficPolicy": {
+          "type": "string",
+          "enum": ["Cluster", "Local"],
+          "description": "Routing policy for external traffic to a LoadBalancer/NodePort service."
+        },
+        "externalIPs": {
+          "type": "array",
+          "description": "External IPs exposed by the service.",
+          "items": { "type": "string" }
+        },
+        "clusterIP": {
+          "type": "string",
+          "description": "ClusterIP to assign (ClusterIP services only)."
+        },
         "enablePorts": {
           "type": "object",
           "description": "Per-port-name toggle (keys must match podPorts).",
