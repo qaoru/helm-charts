@@ -242,6 +242,50 @@ entries:
           description: Add `values.schema.json` for input validation (rejects unknown keys, bad enums, malformed ports/probes/services before install).
       artifacthub.io/images: |
         - name: unifi
+          image: linuxserver/unifi-network-application:10.6.101-ls145
+        - name: mongo-init
+          image: mongo:7.0
+      artifacthub.io/links: |
+        - name: UniFi Network Application (linuxserver image)
+          url: https://hub.docker.com/r/linuxserver/unifi-network-application
+        - name: Source repository
+          url: https://github.com/qaoru/helm-charts/tree/main/unifi
+      artifacthub.io/maintainers: |
+        - name: qaoru
+          email: paul@qaoru.fr
+    apiVersion: v2
+    appVersion: 10.6.101-ls145
+    created: "2026-09-15T17:45:23.459830778Z"
+    dependencies:
+    - condition: metrics.enabled
+      name: unpoller
+      repository: https://unpoller.github.io/helm-chart
+      version: 2.4.0
+    description: The unifi software is a powerful, enterprise wireless software engine
+      ideal for high-density client deployments requiring low latency and high uptime
+      performance.
+    digest: 61b29cc226d9d50d87e87cfb69bab2f6cfe3e8d2a21f88a3af5f2ff5daef5ddb
+    home: https://github.com/qaoru/helm-charts/tree/main/unifi
+    icon: https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/ubiquiti-unifi.svg
+    keywords:
+    - network
+    - unifi
+    - ubiquiti
+    - controller
+    maintainers:
+    - email: paul@qaoru.fr
+      name: qaoru
+    name: unifi
+    type: application
+    urls:
+    - https://github.com/qaoru/helm-charts/releases/download/unifi-1.1.3/unifi-1.1.3.tgz
+    version: 1.1.3
+  - annotations:
+      artifacthub.io/changes: |
+        - kind: added
+          description: Add `values.schema.json` for input validation (rejects unknown keys, bad enums, malformed ports/probes/services before install).
+      artifacthub.io/images: |
+        - name: unifi
           image: linuxserver/unifi-network-application:10.6.101-ls144
         - name: mongo-init
           image: mongo:7.0
@@ -324,4 +368,4 @@ entries:
     urls:
     - https://github.com/qaoru/helm-charts/releases/download/unifi-1.1.1/unifi-1.1.1.tgz
     version: 1.1.1
-generated: "2026-09-14T17:13:14.908176667Z"
+generated: "2026-09-15T17:45:23.459851149Z"
