@@ -42,15 +42,39 @@
     },
     {
       "customType": "regex",
-      "description": "Bump the Open Terminal slim image reference in the Artifact Hub images annotation in open-terminal/Chart.yaml in lockstep with appVersion.",
-      "fileMatch": ["^open-terminal/Chart\\.yaml$"],
+      "description": "Bump the wyoming-openwakeword image tag held in wyoming-openwakeword/Chart.yaml appVersion (upstream release tags).",
+      "fileMatch": ["^wyoming-openwakeword/Chart\\.yaml$"],
       "matchStrings": [
-        "image:\\s*ghcr.io/open-webui/open-terminal:(?<currentValue>\\d+\\.\\d+\\.\\d+-slim)"
+        "appVersion:\\s*\"?(?<currentValue>\\d+\\.\\d+\\.\\d+)\"?"
       ],
-      "autoReplaceStringTemplate": "image: ghcr.io/open-webui/open-terminal:{{newValue}}",
-      "depNameTemplate": "ghcr.io/open-webui/open-terminal",
-      "datasourceTemplate": "docker",
-      "versioningTemplate": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)-slim$"
+      "autoReplaceStringTemplate": "appVersion: {{newValue}}",
+      "depNameTemplate": "rhasspy/wyoming-openwakeword",
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Bump the wyoming-openwakeword image reference in the Artifact Hub images annotation in wyoming-openwakeword/Chart.yaml in lockstep with appVersion.",
+      "fileMatch": ["^wyoming-openwakeword/Chart\\.yaml$"],
+      "matchStrings": [
+        "image:\\s*rhasspy/wyoming-openwakeword:(?<currentValue>\\d+\\.\\d+\\.\\d+)"
+      ],
+      "autoReplaceStringTemplate": "image: rhasspy/wyoming-openwakeword:{{newValue}}",
+      "depNameTemplate": "rhasspy/wyoming-openwakeword",
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Bump the model-fetch curl image tag in wyoming-openwakeword (values.yaml modelFetch.image.tag and the Artifact Hub images annotation in Chart.yaml).",
+      "fileMatch": [
+        "^wyoming-openwakeword/(values\\.yaml|Chart\\.yaml)$"
+      ],
+      "matchStrings": [
+        "repository:\\s*curlimages/curl\\s*\\n\\s*tag:\\s*\"(?<currentValue>\\d+\\.\\d+\\.\\d+)\"",
+        "image:\\s*curlimages/curl:(?<currentValue>\\d+\\.\\d+\\.\\d+)"
+      ],
+      "autoReplaceStringTemplate": "{{newValue}}",
+      "depNameTemplate": "curlimages/curl",
+      "datasourceTemplate": "docker"
     }
   ]
 }

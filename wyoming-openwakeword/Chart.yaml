@@ -1,0 +1,39 @@
+---
+apiVersion: v2
+type: application
+name: wyoming-openwakeword
+description: Wyoming protocol server for openWakeWord wake word detection -- a single endpoint Home Assistant (or any Wyoming client) points at, with optional custom wake-word models fetched by an init container (community collection, GitHub releases, or any direct URL), and optional PVC persistence so models are not re-downloaded on every restart.
+version: 0.1.0
+appVersion: "2.1.0"
+home: https://github.com/qaoru/helm-charts/tree/main/wyoming-openwakeword
+icon: https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/home-assistant.svg
+maintainers:
+  - name: qaoru
+    email: paul@qaoru.fr
+keywords:
+  - wyoming
+  - openwakeword
+  - wake-word
+  - hotword
+  - home-assistant
+  - voice
+  - rhasspy
+annotations:
+  artifacthub.io/changes: |
+    - kind: added
+      description: Initial release of the wyoming-openwakeword chart.
+  artifacthub.io/links: |
+    - name: wyoming-openwakeword (upstream)
+      url: https://github.com/rhasspy/wyoming-openwakeword
+    - name: Community wake word collection
+      url: https://github.com/fwartner/home-assistant-wakewords-collection
+    - name: Source repository
+      url: https://github.com/qaoru/helm-charts/tree/main/wyoming-openwakeword
+  artifacthub.io/maintainers: |
+    - name: qaoru
+      email: paul@qaoru.fr
+  artifacthub.io/images: |
+    - name: wyoming-openwakeword
+      image: rhasspy/wyoming-openwakeword:2.1.0
+    - name: model-fetch
+      image: curlimages/curl:8.22.0

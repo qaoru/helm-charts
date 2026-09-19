@@ -16,6 +16,7 @@ A collection of [Helm](https://helm.sh) charts published two ways:
 | --- | --- | --- |
 | [unifi](./unifi) | UniFi Network Application (linuxserver image) as a StatefulSet with MongoDB bootstrap, dual services, optional ingress, and network policies. | [unifi/README.md](./unifi/README.md) |
 | [open-terminal](./open-terminal) | Single [Open Terminal](https://github.com/open-webui/open-terminal) instance (the agent execution sandbox for Open WebUI) with optional Cilium air-gapped network isolation. | [open-terminal/README.md](./open-terminal/README.md) |
+| [wyoming-openwakeword](./wyoming-openwakeword) | [Wyoming protocol](https://github.com/rhasspy/wyoming) server for [openWakeWord](https://github.com/dscripka/openWakeWord) wake word detection (Home Assistant voice), with an init container that fetches custom models from openwakeword.com and optional PVC persistence for them. | [wyoming-openwakeword/README.md](./wyoming-openwakeword/README.md) |
 
 ## Install
 
@@ -54,6 +55,7 @@ Lint a chart:
 ```bash
 helm lint unifi/
 helm lint open-terminal/
+helm lint wyoming-openwakeword/
 ```
 
 Render templates locally:
@@ -61,6 +63,7 @@ Render templates locally:
 ```bash
 helm template unifi ./unifi --namespace default
 helm template open-terminal ./open-terminal --namespace default
+helm template wyoming-openwakeword ./wyoming-openwakeword --namespace default
 ```
 
 Each chart's `README.md` is generated from `README.md.gotmpl` using
@@ -70,6 +73,7 @@ after editing its values or template:
 ```bash
 helm-docs unifi/
 helm-docs open-terminal/
+helm-docs wyoming-openwakeword/
 ```
 
 A [pre-commit](https://pre-commit.com) hook is provided to keep chart docs in
