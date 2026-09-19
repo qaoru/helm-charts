@@ -300,6 +300,10 @@ extraVolumes: []
 metrics:
   enabled: false
 
+  # Generate a new service name to be configured raw in subchart because we cannot pass dynamic value
+  # must be aligned with UP_UNIFI_CONTROLLER_0_URL
+  aliasServiceName: unifiunpoller
+
   # generate monitoring credentials, you must configure it after pod bootstrap
   unifiCredentials:
     generate: true
