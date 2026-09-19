@@ -1,0 +1,208 @@
+{{- /* Model model entries must be valid before any resource is rendered. */ -}}
+{{- range $i, $m := .Values.models }}
+{{- if not $m.name }}
+{{- fail (printf "wyoming-openwakeword: models[%d] requires a `name` (becomes <name>.tflite and the wake word name clients see)" $i) }}
+{{- end }}
+{{- if and (not $m.path) (not $m.url) }}
+{{- fail (printf "wyoming-openwakeword: models[%d] (%s) requires either `path` (inside modelsCollection) or `url` (direct .tflite URL)" $i $m.name) }}
+{{- end }}
+{{- end }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "wyoming-openwakeword.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "wyoming-openwakeword.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "wyoming-openwakeword.fullname" . }}-h
+  replicas: {{ .Values.replicaCount }}
+  {{- if .Values.revisionHistoryLimit }}
+  revisionHistoryLimit: {{ .Values.revisionHistoryLimit }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "wyoming-openwakeword.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "wyoming-openwakeword.selectorLabels" . | nindent 8 }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with (include "wyoming-openwakeword.serviceAccountName" .) }}
+      serviceAccountName: {{ . }}
+      {{- end }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automount }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if and .Values.models .Values.modelFetch.enabled }}
+      # Fetch custom wake word models before the server starts. Idempotent:
+      # a non-empty target file is never re-downloaded, so with a persistent
+      # volume models are fetched once, not on every pod restart. (Kubernetes
+      # always runs init containers on every pod start; the skip-if-present
+      # check is what makes that effectively "once per volume".) Set
+      # modelFetch.enabled=false to skip it entirely (e.g. a pre-populated PVC).
+      initContainers:
+        - name: model-fetch
+          image: "{{ .Values.modelFetch.image.repository }}:{{ .Values.modelFetch.image.tag }}"
+          imagePullPolicy: {{ .Values.modelFetch.image.pullPolicy }}
+          {{- with .Values.modelFetch.containerSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- /* No env: the model-fetch container only needs curl. */}}
+          {{- with .Values.modelFetch.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: models
+              mountPath: {{ .Values.modelsDir | quote }}
+          command:
+            - /bin/sh
+            - -eu
+            - -c
+            - |
+              cd {{ .Values.modelsDir | quote }}
+              {{- range $i, $m := .Values.models }}
+              {{- /* Model name -> target file; an `_vX.Y` version suffix is
+                   stripped by the server, so `hey_computer` is `hey computer`. */}}
+              {{- $target := printf "%s.tflite" $m.name }}
+              {{- $url := "" }}
+              {{- if $m.url }}
+              {{- $url = $m.url }}
+              {{- else }}
+              {{- /* Collection path: resolve against modelsCollection; spaces
+                   (e.g. `en/Hey Luna`) are percent-encoded. */}}
+              {{- $path := replace " " "%20" $m.path }}
+              {{- $url = printf "%s/%s" $.Values.modelsCollection $path }}
+              {{- end }}
+              echo "== model {{ $m.name }} ({{ $url }})"
+              if [ -s {{ $target | quote }} ]; then
+                echo "   already present, skipping download"
+              else
+                if \
+                  curl -fSL --retry 3 --retry-delay 2 --connect-timeout 15 \
+                  -o {{ printf "%s.part" $target | quote }} \
+                  {{ $url | quote }} && \
+                {{- if $m.sha256 }}
+                  echo {{ printf "%s  %s" $m.sha256 $target | quote }} | sha256sum -c - && \
+                {{- end }}
+                  mv {{ printf "%s.part" $target | quote }} {{ $target | quote }}
+                then
+                  echo "   downloaded"
+                {{- if $m.optional }}
+                {{- /* optional: swallow any failure so the pod can still start. */}}
+                else
+                  echo "   WARN: download failed, continuing (optional: true)"
+                {{- else }}
+                else
+                  echo "   ERROR: download failed" >&2
+                  exit 1
+                {{- end }}
+                fi
+              fi
+              {{- end }}
+              echo "custom models ready:"
+              ls -la {{ .Values.modelsDir | quote }}
+      {{- end }}
+      containers:
+        - name: wyoming-openwakeword
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.containerSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          # The entrypoint runs `python3 -m wyoming_openwakeword --uri
+          # tcp://0.0.0.0:10400 "$@"`, so these args are appended verbatim.
+          args:
+            - --custom-model-dir={{ .Values.modelsDir }}
+            - --threshold={{ .Values.threshold }}
+            - --trigger-level={{ .Values.triggerLevel }}
+            - --refractory-seconds={{ .Values.refractorySeconds }}
+            {{- if .Values.debug }}
+            - --debug
+            {{- end }}
+            {{- range .Values.extraArgs }}
+            - {{ . | quote }}
+            {{- end }}
+          ports:
+            - name: wyoming
+              containerPort: 10400
+              protocol: TCP
+          env:
+            {{- range $k, $v := .Values.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+            {{- range .Values.extraEnv }}
+            - name: {{ .name }}
+              value: {{ .value | quote }}
+            {{- end }}
+          {{- if .Values.probes.liveness.enabled }}
+          livenessProbe:
+            tcpSocket:
+              port: wyoming
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.readiness.enabled }}
+          readinessProbe:
+            tcpSocket:
+              port: wyoming
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: models
+              mountPath: {{ .Values.modelsDir | quote }}
+      {{- /* With persistence the volume comes from the volumeClaimTemplate
+           below (referenced by name in the volumeMounts); a `volumes` entry
+           with the same name would be a duplicate-volume-name API error. */}}
+      {{- if not .Values.persistence.enabled }}
+      volumes:
+        - name: models
+          emptyDir:
+            sizeLimit: {{ .Values.modelsStorage.size | quote }}
+      {{- end }}
+  {{- if .Values.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: models
+      spec:
+        accessModes:
+          - {{ .Values.persistence.accessMode | quote }}
+        {{- with .Values.persistence.storageClass }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.persistence.size | quote }}
+  {{- end }}

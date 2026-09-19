@@ -1,0 +1,303 @@
+# Wyoming openWakeWord -- Wyoming protocol server for openWakeWord.
+#
+# wyoming-openwakeword (rhasspy/wyoming-openwakeword) is the wake word stage of
+# a Home Assistant voice pipeline: satellites (Voice PE, ESPHome devices, ...)
+# stream audio over the Wyoming protocol and this server answers with wake word
+# detections. Design notes:
+#
+#   - built-in models (okay_nabu, hey_jarvis, ...) are bundled in the
+#     `pyopen-wakeword` package -- the server loads them on client request and
+#     NEVER downloads anything at runtime. Only CUSTOM models need to reach the
+#     container, which is what the `model-fetch` init container does.
+#   - custom models must be `.tflite` files in a `--custom-model-dir`; the
+#     model name the client sees is the filename stem (an `_vX.Y` version
+#     suffix is stripped by the server, so `hey_computer.tflite` is simply
+#     `hey_computer`).
+#   - detection state is per TCP connection (each client's handler owns its
+#     detectors and audio feature buffer), so replicaCount > 1 behind the
+#     Service is safe: a client keeps one long-lived connection on one pod,
+#     and a reconnect cleanly re-binds (fresh feature buffer).
+#   - no HTTP endpoint exists -- Wyoming is a raw TCP protocol, so probes are
+#     tcpSocket on the Wyoming port.
+#
+# == Custom models: sources ==
+#
+# The server (via pyopen-wakeword) loads openWakeWord-format .tflite models
+# from --custom-model-dir. Where models come from:
+#
+#   1. BUILT-IN models are bundled in the image (alexa, hey_jarvis,
+#      hey_mycroft, hey_rhasspy, okay_nabu) -- nothing to download.
+#   2. models[].path: a path inside the community wake word collection
+#      (modelsCollection, default fwartner/home-assistant-wakewords-collection
+#      -- 100+ community wake words, English and other languages).
+#   3. models[].url: any direct .tflite URL (upstream dscripka/openWakeWord
+#      release assets, a mirror of the collection, ...).
+#
+# The `model-fetch` init container is idempotent: a model file that already
+# exists (non-empty) is never re-downloaded, so enabling `persistence`
+# fetches models exactly once and keeps them across restarts.
+
+# -- Override the chart name (used in resource names)
+nameOverride: ""
+# -- Fully override the resource name prefix
+fullnameOverride: ""
+
+# -- Number of replicas. Each replica serves its own clients; detection state
+# is per connection, so scaling is safe. Keep 1 unless you run several voice
+# pipelines. NOTE: with `persistence.enabled`, each replica provisions its own
+# PVC (per-ordinal volumeClaimTemplate) and fetches its own copy of the models;
+# to share a single models volume across replicas use `ReadWriteMany`.
+replicaCount: 1
+
+# -- Number of revisions to keep in history
+revisionHistoryLimit: 3
+
+# -- Container image. `tag` defaults to the chart `appVersion` (pinned to an
+# upstream release tag, kept up to date by Renovate).
+image:
+  ## -- Container image repository
+  repository: rhasspy/wyoming-openwakeword
+  ## -- Container image tag (defaults to Chart appVersion)
+  tag: ~
+  ## -- Image pull policy
+  pullPolicy: IfNotPresent
+
+# -- Init container that downloads custom wake word models into
+# `modelsDir` before the server starts. Runs only when `models` is non-empty.
+modelFetch:
+  ## -- Whether to run the model-fetch init container. Set to false when the
+  ## -- models volume is provisioned another way (e.g. pre-populated PVC, or
+  ## -- a sidecar/sync job you manage yourself).
+  enabled: true
+  ## -- Init container image (small, non-root curl image).
+  image:
+    ### -- Init container image repository
+    repository: curlimages/curl
+    ### -- Init container image tag
+    tag: "8.22.0"
+    ### -- Image pull policy
+    pullPolicy: IfNotPresent
+  ## -- Resources for the init container (defaults to none)
+  resources: {}
+  ## -- Security context for the init container. Runs with the pod's
+  ## -- fsGroup (1000) so downloaded files are readable by the server and the
+  ## -- models directory stays group-writable.
+  containerSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: ["ALL"]
+    seccompProfile:
+      type: RuntimeDefault
+
+# -- Custom wake word models (.tflite) served by the server. Each entry is
+# downloaded into `modelsDir` by the `model-fetch` init container (skipped
+# when the file already exists -- combined with `persistence`, models are
+# fetched once per volume, not per pod restart). Leave empty to serve only the
+# built-in models. Each entry needs `name` and one of `path` (inside the
+# community collection) or `url` (any direct .tflite URL).
+models: []
+#  - # -- Model name: becomes `<name>.tflite` on disk and the wake word name
+#      #   clients see (openWakeWord strips a `_vX.Y` suffix, so
+#      #   `hey_computer.tflite` is `hey computer`). Required.
+#      name: glados
+#      # -- Path inside the community collection (modelsCollection). Browse
+#      #    https://github.com/fwartner/home-assistant-wakewords-collection
+#      #    for available words. Spaces are encoded automatically.
+#      path: en/glados/glados.tflite
+#      # -- OR a full URL to a .tflite file (e.g. a dscripka/openWakeWord
+#      #    release asset or another mirror). `url` wins when both are set.
+#      url: https://github.com/dscripka/openWakeWord/releases/download/v0.5.1/timer_v0.1.tflite
+#      # -- Optional expected SHA-256 of the downloaded file (verified after
+#      #    download; the pod fails to start on mismatch).
+#      sha256: ""
+#      # -- Continue when this model fails to download instead of blocking the
+#      #    pod start.
+#      optional: false
+
+# -- Base URL for models[].path entries: the community wake word collection
+# (https://github.com/fwartner/home-assistant-wakewords-collection). Override
+# to point at a fork or mirror.
+modelsCollection: https://raw.githubusercontent.com/fwartner/home-assistant-wakewords-collection/main
+
+# -- Directory inside the pod where custom models are written and from where
+# the server loads them (passed as `--custom-model-dir`).
+modelsDir: /data/models
+
+# -- Server tuning (mapped to upstream CLI flags).
+# -- Wake word threshold, 0.0-1.0 (higher = fewer false activations). Upstream
+# default 0.5.
+threshold: 0.5
+# -- Number of activations required before a detection is reported. Upstream
+# default 1.
+triggerLevel: 1
+# -- Seconds before the same wake word can trigger again. Upstream default 2.
+refractorySeconds: 2.0
+# -- Enable debug logging (upstream --debug flag).
+debug: false
+# -- Additional upstream CLI arguments (e.g. ["--zeroconf", "my-wake-word"]).
+# Note: --custom-model-dir is managed by the chart; zeroconf discovery is
+# rarely useful in Kubernetes (clients use the Service DNS name).
+extraArgs: []
+
+# -- Environment variables for the server container
+env: {}
+#  TZ: Europe/Paris
+
+# -- Additional environment variables as a list of {name, value} objects
+extraEnv: []
+
+# -- Wyoming service configuration. Point the Home Assistant Wyoming
+# integration at `<service>:<port>` (host = release-namespace-qualified DNS
+# name).
+service:
+  ## -- Service type
+  type: ClusterIP
+  ## -- Wyoming port
+  port: 10400
+  ## -- Annotations for the Service
+  annotations: {}
+
+# -- Models storage. Ephemeral emptyDir by default (models re-download on every
+# pod start). Set `persistence.enabled` to back it with a StatefulSet
+# volumeClaimTemplate PVC so models are fetched once and survive restarts.
+modelsStorage:
+  ## -- emptyDir sizeLimit for the models directory (used when persistence is
+  ## -- off). A soft cap: it triggers kubelet eviction when exceeded.
+  size: 1Gi
+
+# -- Persistent storage for custom models. When enabled, a StatefulSet
+# volumeClaimTemplate provisions a PVC per replica (ReadWriteOnce is fine: the
+# server only READS the models, but each replica fetches its own copy -- use
+# ReadWriteMany on a shared filesystem to fetch once and share across
+# replicas).
+persistence:
+  ## -- Provision a PVC for the models directory.
+  enabled: false
+  ## -- PVC size.
+  size: 2Gi
+  ## -- StorageClass (empty = cluster default).
+  storageClass: ""
+  ## -- Access mode. ReadWriteOnce fits replicaCount: 1; use ReadWriteMany
+  ## -- only with a shared filesystem (NFS, etc.) when scaling replicas.
+  accessMode: ReadWriteOnce
+
+# -- Security context for the main server container. The upstream image has no
+# USER directive and is root by default, but the server needs no privileges:
+# it only reads its venv and bundled models and writes nothing. Running
+# non-root is the safe default; override here if your environment disagrees.
+containerSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+  seccompProfile:
+    type: RuntimeDefault
+
+# -- Pod-level security context. fsGroup makes the models volume group-writable
+# by the server and the init container.
+podSecurityContext:
+  fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
+
+# -- Liveness and readiness probe configuration (tcpSocket on the Wyoming
+# port: the Wyoming protocol has no HTTP health endpoint).
+probes:
+  liveness:
+    ## -- Enable liveness probe
+    enabled: true
+    ## -- Initial delay before first probe
+    initialDelaySeconds: 10
+    ## -- Probe interval
+    periodSeconds: 15
+    ## -- Probe timeout
+    timeoutSeconds: 3
+    ## -- Number of failures before restart
+    failureThreshold: 6
+  readiness:
+    ## -- Enable readiness probe
+    enabled: true
+    ## -- Initial delay before first probe
+    initialDelaySeconds: 5
+    ## -- Probe interval
+    periodSeconds: 10
+    ## -- Probe timeout
+    timeoutSeconds: 3
+    ## -- Number of failures before marking unready
+    failureThreshold: 12
+
+# -- Resource requests and limits. openWakeWord inference is modest (a few
+# hundred MiB); models are small (0.5-2 MiB each).
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 1Gi
+
+# -- Service account configuration
+serviceAccount:
+  ## -- Whether to create a service account
+  create: true
+  ## -- Whether to automount the service account token (not needed: no API
+  ## -- access)
+  automount: false
+  ## -- Annotations for the service account
+  annotations: {}
+  ## -- Override the service account name
+  name: ""
+
+# -- Additional pod annotations
+podAnnotations: {}
+# -- Additional pod labels
+podLabels: {}
+# -- Node selector for the pod
+nodeSelector: {}
+# -- Tolerations for the pod
+tolerations: []
+# -- Affinity for the pod
+affinity: {}
+
+# -- Network policy configuration
+networkPolicy:
+  ## -- Enable network policy creation
+  enabled: false
+  ## -- Policy flavor: "kubernetes" or "cilium"
+  flavor: kubernetes
+  ## -- Allow egress for the model-fetch init container (HTTPS to anywhere +
+  ## -- DNS to kube-system). Needed for `models` to be downloadable; disable
+  ## -- only if you pre-provision models another way.
+  allowModelDownloads: true
+  ## -- Standard Kubernetes NetworkPolicy ingress rules (rendered verbatim
+  ## -- when flavor is "kubernetes"). Default: Wyoming clients labelled
+  ## -- app.kubernetes.io/name=home-assistant (the Home Assistant chart naming)
+  ## -- in the release namespace.
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: home-assistant
+      ports:
+        - protocol: TCP
+          port: 10400
+  ## -- Standard Kubernetes NetworkPolicy egress rules, appended after the
+  ## -- auto-generated rules (DNS to kube-dns; HTTPS to anywhere when
+  ## -- allowModelDownloads is true).
+  egress: []
+  ## -- Cilium-specific rules (used when flavor is "cilium").
+  cilium:
+    ## -- Cilium ingress rules (rendered verbatim when non-empty). When empty,
+    ## -- the chart generates a default rule allowing Wyoming clients labelled
+    ## -- app.kubernetes.io/name=home-assistant in the release namespace.
+    ingress: []
+    ## -- Cilium egress rules, appended after the auto-generated rules (DNS to
+    ## -- kube-dns; HTTPS to anywhere when allowModelDownloads is true).
+    egress: []

@@ -1,0 +1,268 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "wyoming-openwakeword values",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "nameOverride": { "type": "string" },
+    "fullnameOverride": { "type": "string" },
+    "replicaCount": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Number of replicas. Detection state is per connection, so replicas > 1 are safe; with persistence each replica fetches its own copy of the models (per-ordinal PVC)."
+    },
+    "revisionHistoryLimit": { "type": "integer", "minimum": 0 },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repository": { "type": "string" },
+        "tag": { "type": ["string", "null"] },
+        "pullPolicy": {
+          "type": "string",
+          "enum": ["Always", "IfNotPresent", "Never"]
+        }
+      }
+    },
+    "modelFetch": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Init container that downloads custom wake word models before the server starts. Runs only when `models` is non-empty.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether to run the model-fetch init container. Set to false when the models volume is provisioned another way (e.g. pre-populated PVC)."
+        },
+        "image": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "repository": { "type": "string" },
+            "tag": { "type": "string" },
+            "pullPolicy": {
+              "type": "string",
+              "enum": ["Always", "IfNotPresent", "Never"]
+            }
+          }
+        },
+        "resources": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Kubernetes ResourceRequirements for the init container."
+        },
+        "containerSecurityContext": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "models": {
+      "type": "array",
+      "description": "Custom wake word models (.tflite) to download into modelsDir. Each entry requires `name` and one of `path` (inside modelsCollection, the community wake word collection) or `url` (direct .tflite URL). Leave empty to serve only built-in models.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Model name: becomes <name>.tflite on disk and the wake word name clients see (an _vX.Y suffix is stripped by the server).",
+            "pattern": "^[a-zA-Z0-9_-]+$",
+            "maxLength": 63
+          },
+          "path": {
+            "type": "string",
+            "description": "Path inside the community collection (modelsCollection), e.g. en/glados/glados.tflite. Spaces are percent-encoded automatically. Ignored when `url` is set.",
+            "pattern": "^[a-zA-Z0-9 ._/-]+$",
+            "maxLength": 200
+          },
+          "url": {
+            "type": "string",
+            "description": "Direct URL to a .tflite file (e.g. a dscripka/openWakeWord release asset). Wins over `path` when both are set."
+          },
+          "sha256": {
+            "type": "string",
+            "description": "Optional expected SHA-256 of the downloaded file (verified after download).",
+            "pattern": "^[a-fA-F0-9]{64}$"
+          },
+          "optional": {
+            "type": "boolean",
+            "description": "Continue when this model fails to download instead of blocking the pod start."
+          }
+        },
+        "required": ["name"]
+      }
+    },
+    "modelsCollection": {
+      "type": "string",
+      "description": "Base URL for models[].path entries: the community wake word collection (fwartner/home-assistant-wakewords-collection). Override to point at a fork or mirror."
+    },
+    "modelsDir": {
+      "type": "string",
+      "description": "Directory inside the pod where custom models are written and loaded from (--custom-model-dir)."
+    },
+    "threshold": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Wake word threshold 0.0-1.0 (higher = fewer false activations)."
+    },
+    "triggerLevel": { "type": "integer", "minimum": 1 },
+    "refractorySeconds": { "type": "number", "minimum": 0 },
+    "debug": { "type": "boolean" },
+    "extraArgs": {
+      "type": "array",
+      "description": "Additional upstream CLI arguments (e.g. [\"--zeroconf\", \"my-wake-word\"]).",
+      "items": { "type": "string" }
+    },
+    "env": {
+      "type": "object",
+      "description": "Environment variables for the server container.",
+      "additionalProperties": { "type": ["string", "number", "boolean"] }
+    },
+    "extraEnv": {
+      "type": "array",
+      "description": "Additional environment variables as a list of {name, value} objects.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "value": { "type": ["string", "number", "boolean"] }
+        },
+        "required": ["name", "value"]
+      }
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["ClusterIP", "NodePort", "LoadBalancer", "ExternalName"]
+        },
+        "port": {
+          "type": ["integer", "string"],
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "annotations": { "type": "object", "additionalProperties": true }
+      }
+    },
+    "modelsStorage": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Models storage when persistence is off (ephemeral emptyDir).",
+      "properties": {
+        "size": {
+          "type": "string",
+          "description": "emptyDir sizeLimit for the models directory (soft cap)."
+        }
+      }
+    },
+    "persistence": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Persistent storage for custom models via StatefulSet volumeClaimTemplate, so models are fetched once and survive restarts.",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "size": { "type": "string" },
+        "storageClass": { "type": "string" },
+        "accessMode": {
+          "type": "string",
+          "enum": ["ReadWriteOnce", "ReadOnlyMany", "ReadWriteMany", "ReadWriteOncePod"]
+        }
+      }
+    },
+    "containerSecurityContext": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "podSecurityContext": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "probes": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "tcpSocket probes on the Wyoming port (the Wyoming protocol has no HTTP health endpoint).",
+      "properties": {
+        "liveness": { "$ref": "#/$defs/probe" },
+        "readiness": { "$ref": "#/$defs/probe" }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Kubernetes ResourceRequirements for the server container."
+    },
+    "serviceAccount": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "create": { "type": "boolean" },
+        "automount": { "type": "boolean" },
+        "annotations": { "type": "object", "additionalProperties": true },
+        "name": { "type": "string" }
+      }
+    },
+    "podAnnotations": { "type": "object", "additionalProperties": true },
+    "podLabels": { "type": "object", "additionalProperties": true },
+    "nodeSelector": { "type": "object", "additionalProperties": true },
+    "tolerations": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+    "affinity": { "type": "object", "additionalProperties": true },
+    "networkPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "flavor": {
+          "type": "string",
+          "enum": ["kubernetes", "cilium"]
+        },
+        "allowModelDownloads": {
+          "type": "boolean",
+          "description": "Generate egress rules allowing the model-fetch init container to reach HTTPS (plus DNS). Disable only if models are pre-provisioned another way."
+        },
+        "ingress": {
+          "type": "array",
+          "description": "Standard Kubernetes NetworkPolicy ingress rules (flavor kubernetes).",
+          "items": { "type": "object", "additionalProperties": true }
+        },
+        "egress": {
+          "type": "array",
+          "description": "Extra standard Kubernetes NetworkPolicy egress rules appended after the auto-generated ones (flavor kubernetes).",
+          "items": { "type": "object", "additionalProperties": true }
+        },
+        "cilium": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "ingress": {
+              "type": "array",
+              "description": "Cilium ingress rules (flavor cilium).",
+              "items": { "type": "object", "additionalProperties": true }
+            },
+            "egress": {
+              "type": "array",
+              "description": "Extra Cilium egress rules appended after the auto-generated ones (flavor cilium).",
+              "items": { "type": "object", "additionalProperties": true }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "probe": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "initialDelaySeconds": { "type": "integer", "minimum": 0 },
+        "periodSeconds": { "type": "integer", "minimum": 1 },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "failureThreshold": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}

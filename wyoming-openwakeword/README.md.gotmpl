@@ -1,0 +1,151 @@
+# {{ template "chart.name" . }}
+
+![Version: {{ .Version }}](https://img.shields.io/badge/Version-{{ .Version }}-informational?style=flat-square)
+![Type: {{ .Type }}](https://img.shields.io/badge/Type-{{ .Type }}-informational?style=flat-square)
+![AppVersion: {{ .AppVersion }}](https://img.shields.io/badge/AppVersion-{{ .AppVersion }}-informational?style=flat-square)
+
+{{ template "chart.description" . }}
+
+Runs the [rhasspy/wyoming-openwakeword](https://github.com/rhasspy/wyoming-openwakeword)
+container as a StatefulSet. This is the wake word stage of a [Home Assistant
+voice](https://www.home-assistant.io/voice_control/) pipeline: satellites
+(Voice PE, ESPHome devices, ...) stream audio over the
+[Wyoming protocol](https://github.com/rhasspy/wyoming) and this server answers
+with wake word detections ([openWakeWord](https://github.com/dscripka/openWakeWord)).
+
+## What this chart deploys
+
+- `StatefulSet` -- the Wyoming server (TCP `10400`), with an optional
+  `model-fetch` init container that downloads custom wake word models before
+  the server starts. Idempotent: a model file that already exists is never
+  re-downloaded, so with `persistence.enabled` models are fetched exactly once
+  per volume (Kubernetes always runs init containers on every pod start -- the
+  skip-if-present check is what makes that effectively "once"). Set
+  `modelFetch.enabled: false` to skip the container entirely (pre-populated
+  volume).
+- `Service` (headless, governing) -- required by the StatefulSet for stable pod
+  identity.
+- `Service` (ClusterIP) -- the endpoint Home Assistant points at:
+  `wyoming-openwakeword.<namespace>.svc:<port>`.
+- Optional `NetworkPolicy` / `CiliumNetworkPolicy` (flavor `kubernetes` or
+  `cilium`).
+
+Custom models are not required: the built-in openWakeWord models (`okay_nabu`,
+`hey_jarvis`, ...) are bundled in the server and load on client request, with
+no download at runtime. The init container only runs when you list `models`.
+
+## Prerequisites
+
+- Kubernetes >= 1.21
+- Helm >= 3.7 (OCI support)
+
+## Installation
+
+Built-in models only, no persistence (nothing is downloaded at all):
+
+```bash
+helm install wyoming-openwakeword oci://ghcr.io/qaoru/helm-charts/wyoming-openwakeword --version {{ .Version }}
+```
+
+Or with custom models from the community collection and a PVC so they are not
+re-downloaded on every restart:
+
+```yaml
+models:
+  - name: glados
+    path: en/glados/glados.tflite           # inside modelsCollection
+  - name: timer
+    url: https://github.com/dscripka/openWakeWord/releases/download/v0.5.1/timer_v0.1.tflite
+  - name: tars
+    path: en/TARS/TARS.tflite
+    optional: true
+persistence:
+  enabled: true
+```
+
+```bash
+helm install wyoming-openwakeword oci://ghcr.io/qaoru/helm-charts/wyoming-openwakeword --version {{ .Version }} -f values.yaml
+```
+
+### 3. Connect Home Assistant
+
+In Home Assistant (`Settings` -> `Devices & Services` -> `Add Integration` ->
+`Wyoming`), point the integration at:
+
+| Field | Value |
+| --- | --- |
+| Host | `wyoming-openwakeword.<namespace>.svc.cluster.local` |
+| Port | `10400` (default) |
+
+Your wake words (built-in + custom) appear in the Assist pipeline wake word
+selection. The model name clients see is the `models[].name` filename stem
+(an `_vX.Y` suffix is stripped by the server, so `hey_computer.tflite` is
+`hey computer`).
+
+## Model fetching details
+
+- `models[].path` downloads from `<modelsCollection>/<path>` (spaces are
+  percent-encoded automatically).
+- `models[].url` downloads from any direct `.tflite` URL (`url` wins when
+  both are set).
+- Downloads are verified against `sha256` when set, saved atomically
+  (`<name>.tflite.part` then rename), and skipped entirely when the target
+  file already exists. A failed required model blocks the pod start; set
+  `optional: true` to continue instead.
+- The init container runs as non-root from a pinned `curlimages/curl` image.
+
+Note (Kubernetes behavior, not chart-specific): `persistence.size` is part of
+the StatefulSet `volumeClaimTemplate` and is **immutable after install** --
+changing it on upgrade fails with `field is immutable`; pre-provision a bigger
+volume instead.
+
+## Where to get custom models
+
+The server (via `pyopen-wakeword`) loads openWakeWord-format `.tflite` models
+from `--custom-model-dir`. Sources (all verified to load in
+`rhasspy/wyoming-openwakeword:2.1.0`):
+
+| Source | How | Auth |
+| --- | --- | --- |
+| Built-in models (`okay_nabu`, `hey_jarvis`, `hey_mycroft`, `hey_rhasspy`, `alexa`) | Bundled in the image -- nothing to download | none |
+| [fwartner/home-assistant-wakewords-collection](https://github.com/fwartner/home-assistant-wakewords-collection) -- 100+ community wake words (en, dk, fi, ru, zh) | `models[].path` (resolves against `modelsCollection`), e.g. `en/glados/glados.tflite` | none |
+| [dscripka/openWakeWord releases](https://github.com/dscripka/openWakeWord/releases) -- upstream pretrained models (`timer`, `weather`, ...) | `models[].url` with the release asset URL, e.g. `https://github.com/dscripka/openWakeWord/releases/download/v0.5.1/timer_v0.1.tflite` | none |
+| Any other URL hosting an openWakeWord-format `.tflite` | `models[].url` | none |
+
+## Network policy
+
+Disabled by default. `networkPolicy.flavor: kubernetes` renders a standard
+`NetworkPolicy`, `cilium` a `CiliumNetworkPolicy`:
+
+- **ingress**: Wyoming clients only (defaults to pods labelled
+  `app.kubernetes.io/name=home-assistant` in the release namespace, on the
+  Wyoming port).
+- **egress**: DNS to kube-dns, and HTTPS to anywhere when
+  `networkPolicy.allowModelDownloads` is true (only the init container needs
+  it). Extra rules can be appended via `networkPolicy.egress` /
+  `networkPolicy.cilium.egress`.
+
+## Persistence and replicas
+
+With `persistence.enabled`, each replica provisions its **own** PVC
+(per-ordinal `volumeClaimTemplate`) and fetches its own copy of the models --
+`ReadWriteOnce` is fine at any replica count (the server only *reads* the
+models; only the init container writes, once per volume). To fetch once and
+share a single models volume across all replicas, use `ReadWriteMany` on a
+shared filesystem. Without persistence, an ephemeral `emptyDir` means the
+models re-download on every pod start.
+
+## Security posture
+
+- The server runs as UID/GID 1000, non-root, all capabilities dropped,
+  read-only root filesystem, seccomp `RuntimeDefault`. It needs no privileges
+  (it only reads its bundled models and venv, and writes nothing) -- override
+  `containerSecurityContext` if your environment disagrees.
+- The init container runs as non-root from the distroless-style
+  `curlimages/curl` image, read-only root filesystem, all capabilities dropped.
+- The Wyoming port has no HTTP endpoint; probes are `tcpSocket`.
+- Detection state is per TCP connection, so `replicaCount` > 1 is safe.
+
+## Values
+
+{{ template "chart.valuesTable" . }}
