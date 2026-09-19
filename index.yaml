@@ -238,6 +238,50 @@ entries:
   unifi:
   - annotations:
       artifacthub.io/changes: |
+        - kind: changed
+          description: Update unifi image to 10.6.106-ls146
+      artifacthub.io/images: |
+        - name: unifi
+          image: linuxserver/unifi-network-application:10.6.106-ls146
+        - name: mongo-init
+          image: mongo:7.0
+      artifacthub.io/links: |
+        - name: UniFi Network Application (linuxserver image)
+          url: https://hub.docker.com/r/linuxserver/unifi-network-application
+        - name: Source repository
+          url: https://github.com/qaoru/helm-charts/tree/main/unifi
+      artifacthub.io/maintainers: |
+        - name: qaoru
+          email: paul@qaoru.fr
+    apiVersion: v2
+    appVersion: 10.6.106-ls146
+    created: "2026-09-19T11:32:43.940745769Z"
+    dependencies:
+    - condition: metrics.enabled
+      name: unpoller
+      repository: https://unpoller.github.io/helm-chart
+      version: 2.4.0
+    description: The unifi software is a powerful, enterprise wireless software engine
+      ideal for high-density client deployments requiring low latency and high uptime
+      performance.
+    digest: 8944e11f4aeb686b40fed0817bcbc9d9c9d4cc441d006cddec6f66b35396dc56
+    home: https://github.com/qaoru/helm-charts/tree/main/unifi
+    icon: https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/ubiquiti-unifi.svg
+    keywords:
+    - network
+    - unifi
+    - ubiquiti
+    - controller
+    maintainers:
+    - email: paul@qaoru.fr
+      name: qaoru
+    name: unifi
+    type: application
+    urls:
+    - https://github.com/qaoru/helm-charts/releases/download/unifi-1.1.4/unifi-1.1.4.tgz
+    version: 1.1.4
+  - annotations:
+      artifacthub.io/changes: |
         - kind: added
           description: Add `values.schema.json` for input validation (rejects unknown keys, bad enums, malformed ports/probes/services before install).
       artifacthub.io/images: |
@@ -415,4 +459,4 @@ entries:
     urls:
     - https://github.com/qaoru/helm-charts/releases/download/wyoming-openwakeword-0.1.0/wyoming-openwakeword-0.1.0.tgz
     version: 0.1.0
-generated: "2026-09-19T11:01:55.143256688Z"
+generated: "2026-09-19T11:32:44.091568435Z"
