@@ -368,4 +368,51 @@ entries:
     urls:
     - https://github.com/qaoru/helm-charts/releases/download/unifi-1.1.1/unifi-1.1.1.tgz
     version: 1.1.1
-generated: "2026-09-15T17:45:23.459851149Z"
+  wyoming-openwakeword:
+  - annotations:
+      artifacthub.io/changes: |
+        - kind: added
+          description: Initial release of the wyoming-openwakeword chart.
+      artifacthub.io/images: |-
+        - name: wyoming-openwakeword
+          image: rhasspy/wyoming-openwakeword:2.1.0
+        - name: model-fetch
+          image: curlimages/curl:8.22.0
+      artifacthub.io/links: |
+        - name: wyoming-openwakeword (upstream)
+          url: https://github.com/rhasspy/wyoming-openwakeword
+        - name: Community wake word collection
+          url: https://github.com/fwartner/home-assistant-wakewords-collection
+        - name: Source repository
+          url: https://github.com/qaoru/helm-charts/tree/main/wyoming-openwakeword
+      artifacthub.io/maintainers: |
+        - name: qaoru
+          email: paul@qaoru.fr
+    apiVersion: v2
+    appVersion: 2.1.0
+    created: "2026-09-19T11:01:55.143232904Z"
+    description: Wyoming protocol server for openWakeWord wake word detection -- a
+      single endpoint Home Assistant (or any Wyoming client) points at, with optional
+      custom wake-word models fetched by an init container (community collection,
+      GitHub releases, or any direct URL), and optional PVC persistence so models
+      are not re-downloaded on every restart.
+    digest: 704474123f74875732873d1409ef1b945254567d55171e7c7d5ffcdb54c635d0
+    home: https://github.com/qaoru/helm-charts/tree/main/wyoming-openwakeword
+    icon: https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/home-assistant.svg
+    keywords:
+    - wyoming
+    - openwakeword
+    - wake-word
+    - hotword
+    - home-assistant
+    - voice
+    - rhasspy
+    maintainers:
+    - email: paul@qaoru.fr
+      name: qaoru
+    name: wyoming-openwakeword
+    type: application
+    urls:
+    - https://github.com/qaoru/helm-charts/releases/download/wyoming-openwakeword-0.1.0/wyoming-openwakeword-0.1.0.tgz
+    version: 0.1.0
+generated: "2026-09-19T11:01:55.143256688Z"
