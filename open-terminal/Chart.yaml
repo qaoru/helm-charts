@@ -4,7 +4,7 @@ type: application
 name: open-terminal
 description: Multiple Open Terminal workstations for Open WebUI -- the agent execution sandbox Open WebUI drives from chat -- each a stateful, individually-addressable endpoint with optional Cilium air-gapped network isolation and optional persistent workspace.
 version: 0.2.4
-appVersion: 0.13.0-slim
+appVersion: 0.14.0-slim
 home: https://github.com/qaoru/helm-charts/tree/main/open-terminal
 icon: https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/open-webui.svg
 maintainers:
