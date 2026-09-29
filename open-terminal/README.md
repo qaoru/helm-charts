@@ -1,8 +1,8 @@
 # open-terminal
 
-![Version: 0.2.4](https://img.shields.io/badge/Version-0.2.4-informational?style=flat-square)
+![Version: 0.2.5](https://img.shields.io/badge/Version-0.2.5-informational?style=flat-square)
 ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square)
-![AppVersion: 0.13.0-slim](https://img.shields.io/badge/AppVersion-0.13.0-slim-informational?style=flat-square)
+![AppVersion: 0.14.0-slim](https://img.shields.io/badge/AppVersion-0.14.0-slim-informational?style=flat-square)
 
 Multiple Open Terminal workstations for Open WebUI -- the agent execution sandbox Open WebUI drives from chat -- each a stateful, individually-addressable endpoint with optional Cilium air-gapped network isolation and optional persistent workspace.
 
@@ -80,13 +80,13 @@ kubectl create secret generic open-terminal-api-key \
 ### 2. Install the chart
 
 ```bash
-helm install open-terminal oci://ghcr.io/qaoru/helm-charts/open-terminal --version 0.2.4
+helm install open-terminal oci://ghcr.io/qaoru/helm-charts/open-terminal --version 0.2.5
 ```
 
 Or with a local `values.yaml`:
 
 ```bash
-helm install open-terminal oci://ghcr.io/qaoru/helm-charts/open-terminal --version 0.2.4 -f values.yaml
+helm install open-terminal oci://ghcr.io/qaoru/helm-charts/open-terminal --version 0.2.5 -f values.yaml
 ```
 
 ### 3. Deploy several workstations
