@@ -1,8 +1,8 @@
 # unifi
 
-![Version: 1.1.4](https://img.shields.io/badge/Version-1.1.4-informational?style=flat-square)
+![Version: 1.1.5](https://img.shields.io/badge/Version-1.1.5-informational?style=flat-square)
 ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square)
-![AppVersion: 10.6.106-ls146](https://img.shields.io/badge/AppVersion-10.6.106-ls146-informational?style=flat-square)
+![AppVersion: 10.6.106-ls147](https://img.shields.io/badge/AppVersion-10.6.106-ls147-informational?style=flat-square)
 
 The unifi software is a powerful, enterprise wireless software engine ideal for high-density client deployments requiring low latency and high uptime performance.
 
@@ -30,7 +30,7 @@ kubectl create secret generic unifi-db-credentials \
 ### 2. Install the chart
 
 ```bash
-helm install unifi oci://ghcr.io/qaoru/helm-charts/unifi --version 1.1.4 \
+helm install unifi oci://ghcr.io/qaoru/helm-charts/unifi --version 1.1.5 \
   --set database.host=<your-mongodb-host> \
   --set database.credentials.generate=true
 ```
@@ -38,7 +38,7 @@ helm install unifi oci://ghcr.io/qaoru/helm-charts/unifi --version 1.1.4 \
 Or with a local `values.yaml`:
 
 ```bash
-helm install unifi oci://ghcr.io/qaoru/helm-charts/unifi --version 1.1.4 -f values.yaml
+helm install unifi oci://ghcr.io/qaoru/helm-charts/unifi --version 1.1.5 -f values.yaml
 ```
 
 ## Configuration
@@ -92,6 +92,7 @@ Data is persisted at `/config` via a StatefulSet `volumeClaimTemplate` (default 
 | ingress | object | `{"annotations":{"server-ssl":"true"},"className":"","enabled":false,"hosts":[{"host":"unifi.example.com","paths":[{"path":"/","pathType":"Prefix"}]}],"tls":[]}` | Ingress configuration |
 | initContainerResources | string | `nil` | Resources for the init container (defaults to none) |
 | initContainerSecurityContext | object | `{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]}}` | Security context for the init container |
+| metrics.aliasServiceName | string | `"unifiunpoller"` |  |
 | metrics.enabled | bool | `false` |  |
 | metrics.unifiCredentials.generate | bool | `true` |  |
 | metrics.unifiCredentials.passwordKey | string | `"password"` |  |
