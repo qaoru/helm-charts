@@ -4,6 +4,45 @@ entries:
   - annotations:
       artifacthub.io/changes: |
         - kind: changed
+          description: Update open-terminal image to 0.14.0-slim
+      artifacthub.io/images: |-
+        - name: open-terminal
+          image: ghcr.io/open-webui/open-terminal:0.13.0-slim
+      artifacthub.io/links: |
+        - name: Open Terminal (upstream)
+          url: https://github.com/open-webui/open-terminal
+        - name: Source repository
+          url: https://github.com/qaoru/helm-charts/tree/main/open-terminal
+      artifacthub.io/maintainers: |
+        - name: qaoru
+          email: paul@qaoru.fr
+    apiVersion: v2
+    appVersion: 0.14.0-slim
+    created: "2026-09-29T21:24:47.050686927Z"
+    description: Multiple Open Terminal workstations for Open WebUI -- the agent execution
+      sandbox Open WebUI drives from chat -- each a stateful, individually-addressable
+      endpoint with optional Cilium air-gapped network isolation and optional persistent
+      workspace.
+    digest: 94368a5820a95cddbd1cc486a4fed316476d2ff6357a64b19ecf6735fc9b05aa
+    home: https://github.com/qaoru/helm-charts/tree/main/open-terminal
+    icon: https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/open-webui.svg
+    keywords:
+    - open-webui
+    - open-terminal
+    - agent
+    - sandbox
+    - terminal
+    maintainers:
+    - email: paul@qaoru.fr
+      name: qaoru
+    name: open-terminal
+    type: application
+    urls:
+    - https://github.com/qaoru/helm-charts/releases/download/open-terminal-0.2.5/open-terminal-0.2.5.tgz
+    version: 0.2.5
+  - annotations:
+      artifacthub.io/changes: |
+        - kind: changed
           description: Update open-terminal image to 0.13.0-slim
       artifacthub.io/images: |-
         - name: open-terminal
@@ -459,4 +498,4 @@ entries:
     urls:
     - https://github.com/qaoru/helm-charts/releases/download/wyoming-openwakeword-0.1.0/wyoming-openwakeword-0.1.0.tgz
     version: 0.1.0
-generated: "2026-09-19T11:32:44.091568435Z"
+generated: "2026-09-29T21:24:48.146810681Z"
