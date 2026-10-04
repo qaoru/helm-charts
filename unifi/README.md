@@ -1,8 +1,8 @@
 # unifi
 
-![Version: 1.1.5](https://img.shields.io/badge/Version-1.1.5-informational?style=flat-square)
+![Version: 1.1.6](https://img.shields.io/badge/Version-1.1.6-informational?style=flat-square)
 ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square)
-![AppVersion: 10.6.106-ls147](https://img.shields.io/badge/AppVersion-10.6.106-ls147-informational?style=flat-square)
+![AppVersion: 10.6.106-ls148](https://img.shields.io/badge/AppVersion-10.6.106-ls148-informational?style=flat-square)
 
 The unifi software is a powerful, enterprise wireless software engine ideal for high-density client deployments requiring low latency and high uptime performance.
 
@@ -30,7 +30,7 @@ kubectl create secret generic unifi-db-credentials \
 ### 2. Install the chart
 
 ```bash
-helm install unifi oci://ghcr.io/qaoru/helm-charts/unifi --version 1.1.5 \
+helm install unifi oci://ghcr.io/qaoru/helm-charts/unifi --version 1.1.6 \
   --set database.host=<your-mongodb-host> \
   --set database.credentials.generate=true
 ```
@@ -38,7 +38,7 @@ helm install unifi oci://ghcr.io/qaoru/helm-charts/unifi --version 1.1.5 \
 Or with a local `values.yaml`:
 
 ```bash
-helm install unifi oci://ghcr.io/qaoru/helm-charts/unifi --version 1.1.5 -f values.yaml
+helm install unifi oci://ghcr.io/qaoru/helm-charts/unifi --version 1.1.6 -f values.yaml
 ```
 
 ## Configuration
