@@ -220,7 +220,10 @@
       "additionalProperties": false,
       "properties": {
         "enabled": { "type": "boolean" },
-        "unifiCredentials": {
+        "aliasServiceName": {
+        "type": "string"
+      },
+      "unifiCredentials": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
