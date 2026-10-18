@@ -20,6 +20,20 @@
 {{- if hasKey $inst "runtimeClassName" }}{{- $runtimeClass = $inst.runtimeClassName }}{{- end }}
 {{- $nodeSelector := $.Values.nodeSelector }}
 {{- if hasKey $inst "nodeSelector" }}{{- $nodeSelector = $inst.nodeSelector }}{{- end }}
+{{- /* Scheduling fields follow the same omit = inherit / present = override
+     rule as nodeSelector / runtimeClassName: an instance that omits the key
+     inherits the chart-wide value; a present key wins even when empty
+     ("" / {} / [] drops the chart-wide setting for this workstation). */ -}}
+{{- $affinity := $.Values.affinity }}
+{{- if hasKey $inst "affinity" }}{{- $affinity = $inst.affinity }}{{- end }}
+{{- $topologySpread := $.Values.topologySpreadConstraints }}
+{{- if hasKey $inst "topologySpreadConstraints" }}{{- $topologySpread = $inst.topologySpreadConstraints }}{{- end }}
+{{- $tolerations := $.Values.tolerations }}
+{{- if hasKey $inst "tolerations" }}{{- $tolerations = $inst.tolerations }}{{- end }}
+{{- $priorityClassName := $.Values.priorityClassName }}
+{{- if hasKey $inst "priorityClassName" }}{{- $priorityClassName = $inst.priorityClassName }}{{- end }}
+{{- $schedulerName := $.Values.schedulerName }}
+{{- if hasKey $inst "schedulerName" }}{{- $schedulerName = $inst.schedulerName }}{{- end }}
 {{- $persistence := $inst.persistence | default dict }}
 {{- $workspace := $inst.workspace | default dict }}
 {{- $mountPath := $persistence.mountPath | default "/home/user" }}
@@ -48,6 +62,24 @@ spec:
       {{- with $nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $topologySpread }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+      {{- with $schedulerName }}
+      schedulerName: {{ . | quote }}
       {{- end }}
       {{- with $.Values.podSecurityContext }}
       securityContext:

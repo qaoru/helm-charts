@@ -153,12 +153,53 @@ instances:
 A pod with `runtimeClassName: kata` can fail container creation if it lands on a
 node without the runtime, hence the node selector.
 
-`runtimeClassName` and `nodeSelector` follow the **omit = inherit, present =
-override** rule: an instance that omits them inherits the chart-wide value,
-while an instance that sets them (including an explicit empty `""` / `{}`)
-overrides the chart-wide value for that workstation. So you can set `kata`
-chart-wide and drop it from a single instance with `runtimeClassName: ""` +
-`nodeSelector: {}`, as above.
+`runtimeClassName`, `nodeSelector` and the scheduling fields (`affinity`,
+`topologySpreadConstraints`, `tolerations`, `priorityClassName`,
+`schedulerName`) follow the **omit = inherit, present = override** rule: an
+instance that omits them inherits the chart-wide value, while an instance that
+sets them (including an explicit empty `""` / `{}` / `[]`) overrides the
+chart-wide value for that workstation. So you can set `kata` chart-wide and
+drop it from a single instance with `runtimeClassName: ""` + `nodeSelector: {}`,
+as above.
+
+## Scheduling
+
+Besides `nodeSelector` and `runtimeClassName`, each workstation pod supports
+the standard Kubernetes scheduling controls, chart-wide and overridable per
+instance (same omit = inherit, present = override rule, including an explicit
+empty value to drop the setting):
+
+```yaml
+affinity: # Kubernetes Affinity object
+  podAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchExpressions:
+            - key: app.kubernetes.io/name
+              operator: In
+              values: [open-webui]
+        topologyKey: kubernetes.io/hostname
+
+topologySpreadConstraints: [] # Kubernetes TopologySpreadConstraint[]
+tolerations: [] # e.g. a taint dedicated to agent workloads
+priorityClassName: "" # must reference an existing PriorityClass
+schedulerName: "" # default: kube-scheduler
+```
+
+Notes:
+
+- Each workstation pod carries the custom label
+  `open-terminal.qaoru.fr/workstation=<name>`, so `podAffinity` / `podAntiAffinity`
+  can target (or avoid) a specific workstation — e.g. co-locate one
+  workstation with the Open WebUI pod, or keep two workstations on different
+  nodes.
+- `topologySpreadConstraints` are mostly useful fleet-wide: with `replicas`
+  fixed at 1 per workstation, a constraint selecting on
+  `app.kubernetes.io/name: open-terminal` (plus the release instance label)
+  spreads the set of workstation pods across the chosen topology.
+- An air-gapped agent workstation (egress default-deny) is a natural fit for
+  tainted, dedicated nodes: pair `nodeSelector` with `tolerations` to pin the
+  workload there and keep other pods out.
 
 ## Network policy
 

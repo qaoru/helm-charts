@@ -26,6 +26,23 @@
     },
     "runtimeClassName": { "type": ["string", "null"] },
     "nodeSelector": { "type": "object", "additionalProperties": true },
+    "affinity": {
+      "type": "object",
+      "description": "Kubernetes Affinity object (nodeAffinity, podAffinity, podAntiAffinity). Empty by default.",
+      "additionalProperties": true
+    },
+    "topologySpreadConstraints": {
+      "type": "array",
+      "description": "Kubernetes TopologySpreadConstraint[]. Empty by default.",
+      "items": { "type": "object", "additionalProperties": true }
+    },
+    "tolerations": {
+      "type": "array",
+      "description": "Kubernetes Toleration[]. Empty by default.",
+      "items": { "type": "object", "additionalProperties": true }
+    },
+    "priorityClassName": { "type": ["string", "null"] },
+    "schedulerName": { "type": ["string", "null"] },
     "podSecurityContext": { "type": "object", "additionalProperties": true },
     "containerSecurityContext": { "type": "object", "additionalProperties": true },
     "instances": {
@@ -71,6 +88,29 @@
         },
         "runtimeClassName": { "type": ["string", "null"] },
         "nodeSelector": { "type": "object", "additionalProperties": true },
+        "affinity": {
+          "type": "object",
+          "description": "Kubernetes Affinity for this workstation. Omit to inherit; set (including an empty object) to override the chart-wide value.",
+          "additionalProperties": true
+        },
+        "topologySpreadConstraints": {
+          "type": "array",
+          "description": "Kubernetes TopologySpreadConstraint[] for this workstation. Omit to inherit; set (including an empty array) to override the chart-wide value.",
+          "items": { "type": "object", "additionalProperties": true }
+        },
+        "tolerations": {
+          "type": "array",
+          "description": "Kubernetes Toleration[] for this workstation. Omit to inherit; set (including an empty array) to override the chart-wide value.",
+          "items": { "type": "object", "additionalProperties": true }
+        },
+        "priorityClassName": {
+          "type": ["string", "null"],
+          "description": "PriorityClass for this workstation. Omit to inherit; set (including an empty string) to override the chart-wide value."
+        },
+        "schedulerName": {
+          "type": ["string", "null"],
+          "description": "Scheduler for this workstation. Omit to inherit; set (including an empty string) to override the chart-wide value."
+        },
         "env": {
           "type": "object",
           "description": "Open Terminal app env for this workstation (beyond OPEN_TERMINAL_API_KEY, which comes from the secret).",

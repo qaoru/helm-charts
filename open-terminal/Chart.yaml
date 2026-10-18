@@ -3,7 +3,7 @@ apiVersion: v2
 type: application
 name: open-terminal
 description: Multiple Open Terminal workstations for Open WebUI -- the agent execution sandbox Open WebUI drives from chat -- each a stateful, individually-addressable endpoint with optional Cilium air-gapped network isolation and optional persistent workspace.
-version: 0.2.6
+version: 0.2.7
 appVersion: 0.14.1-slim
 home: https://github.com/qaoru/helm-charts/tree/main/open-terminal
 icon: https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/open-webui.svg
@@ -18,8 +18,8 @@ keywords:
   - terminal
 annotations:
   artifacthub.io/changes: |
-    - kind: changed
-      description: Update open-terminal image to 0.14.1-slim
+    - kind: added
+      description: Add scheduling fields (affinity, topologySpreadConstraints, tolerations, priorityClassName, schedulerName), chart-wide and overridable per instance
   artifacthub.io/links: |
     - name: Open Terminal (upstream)
       url: https://github.com/open-webui/open-terminal

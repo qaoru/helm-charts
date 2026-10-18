@@ -55,7 +55,9 @@
 
 # ---------------------------------------------------------------------------
 # Chart-wide defaults (inherited by every instance; an instance may override
-# `image`, `apiKey`, `runtimeClassName`, `nodeSelector`).
+# `image`, `apiKey`, `runtimeClassName`, `nodeSelector`, and the scheduling
+# fields `affinity`, `topologySpreadConstraints`, `tolerations`,
+# `priorityClassName`, `schedulerName`).
 # ---------------------------------------------------------------------------
 
 # -- Container image. `tag` defaults to the chart `appVersion` (a pinned
@@ -92,6 +94,46 @@ runtimeClassName: ""
 # it lands on a node without the runtime. An instance may override this
 # (including setting `nodeSelector: {}` to drop a chart-wide pin).
 nodeSelector: {}
+
+# -- Pod affinity / anti-affinity, expressed directly as a Kubernetes
+# `Affinity` object (nodeAffinity, podAffinity, podAntiAffinity). Applied to
+# every instance that does not set its own `affinity`. An instance may
+# override this (including setting `affinity: {}` to drop a chart-wide
+# setting). Note: every workstation carries the
+# label `open-terminal.qaoru.fr/workstation=<name>`, so `podAffinity`/
+# `podAntiAffinity` can select (or avoid) a specific workstation's pod —
+# e.g. to co-locate one workstation with Open WebUI, or keep two workstations
+# on different nodes/failure domains without touching other workloads.
+affinity: {}
+
+# -- Topology spread constraints (Kubernetes `TopologySpreadConstraint[]`).
+# Applied to every instance that does not set its own
+# `topologySpreadConstraints`. Since each workstation is exactly one pod
+# (replicas is fixed at 1), spreading is mostly relevant when running several
+# workstations: the constraint is evaluated per label selector, so e.g.
+# `topologyKey: kubernetes.io/hostname` with a selector matching
+# `app.kubernetes.io/name: open-terminal` spreads the fleet of workstations
+# across nodes. An instance may override this (including setting
+# `topologySpreadConstraints: []` to drop a chart-wide setting).
+topologySpreadConstraints: []
+
+# -- Tolerations (Kubernetes `Toleration[]`), e.g. to schedule on tainted
+# nodes dedicated to agent workloads (`node.kubernetes.io` taints etc.).
+# Applied to every instance that does not set its own `tolerations`. An
+# instance may override this (including setting `tolerations: []` to drop a
+# chart-wide setting).
+tolerations: []
+
+# -- PriorityClassName for the workstation pods (must reference an existing
+# PriorityClass in the cluster). Empty by default. An instance may override
+# this (including setting `priorityClassName: ""` to drop a chart-wide
+# setting).
+priorityClassName: ""
+
+# -- Scheduler name for the workstation pods (e.g. a custom scheduler).
+# Empty by default (kube-scheduler). An instance may override this (including
+# setting `schedulerName: ""` to drop a chart-wide setting).
+schedulerName: ""
 
 # -- Pod security context (chart-wide; not overridable per instance). The slim
 # image starts as root only so its entrypoint can fix /home/user ownership, then
@@ -152,12 +194,15 @@ instances:
     # workstation.
     apiKey: {}
 
-    # RuntimeClass / node selector override: OMIT to inherit the chart-wide
-    # value; SET (including an explicit empty `""` / `{}`) to override it for
-    # this workstation. e.g. to drop a chart-wide `kata` setting from one
-    # instance, set `runtimeClassName: ""` and `nodeSelector: {}` on it. Sprig's
-    # `default` cannot express "explicit empty" (it treats "" and {} as empty),
-    # so the templates use hasKey -- a present key always wins, even when empty.
+    # RuntimeClass / node selector / scheduling override: OMIT to inherit the
+    # chart-wide value; SET (including an explicit empty `""` / `{}` / `[]`) to
+    # override it for this workstation. e.g. to drop a chart-wide `kata`
+    # setting from one instance, set `runtimeClassName: ""` and
+    # `nodeSelector: {}` on it. Sprig's `default` cannot express "explicit
+    # empty" (it treats "" and {} as empty), so the templates use hasKey -- a
+    # present key always wins, even when empty.
+    # Scheduling fields: `affinity`, `topologySpreadConstraints`,
+    # `tolerations`, `priorityClassName`, `schedulerName`.
 
     # -- Open Terminal app env for this workstation (beyond
     # OPEN_TERMINAL_API_KEY, which comes from the secret). host/port have NO
