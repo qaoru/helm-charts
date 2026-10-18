@@ -153,12 +153,53 @@ instances:
 A pod with `runtimeClassName: kata` can fail container creation if it lands on a
 node without the runtime, hence the node selector.
 
-`runtimeClassName` and `nodeSelector` follow the **omit = inherit, present =
-override** rule: an instance that omits them inherits the chart-wide value,
-while an instance that sets them (including an explicit empty `""` / `{}`)
-overrides the chart-wide value for that workstation. So you can set `kata`
-chart-wide and drop it from a single instance with `runtimeClassName: ""` +
-`nodeSelector: {}`, as above.
+`runtimeClassName`, `nodeSelector` and the scheduling fields (`affinity`,
+`topologySpreadConstraints`, `tolerations`, `priorityClassName`,
+`schedulerName`) follow the **omit = inherit, present = override** rule: an
+instance that omits them inherits the chart-wide value, while an instance that
+sets them (including an explicit empty `""` / `{}` / `[]`) overrides the
+chart-wide value for that workstation. So you can set `kata` chart-wide and
+drop it from a single instance with `runtimeClassName: ""` + `nodeSelector: {}`,
+as above.
+
+## Scheduling
+
+Besides `nodeSelector` and `runtimeClassName`, each workstation pod supports
+the standard Kubernetes scheduling controls, chart-wide and overridable per
+instance (same omit = inherit, present = override rule, including an explicit
+empty value to drop the setting):
+
+```yaml
+affinity: # Kubernetes Affinity object
+  podAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchExpressions:
+            - key: app.kubernetes.io/name
+              operator: In
+              values: [open-webui]
+        topologyKey: kubernetes.io/hostname
+
+topologySpreadConstraints: [] # Kubernetes TopologySpreadConstraint[]
+tolerations: [] # e.g. a taint dedicated to agent workloads
+priorityClassName: "" # must reference an existing PriorityClass
+schedulerName: "" # default: kube-scheduler
+```
+
+Notes:
+
+- Each workstation pod carries the custom label
+  `open-terminal.qaoru.fr/workstation=<name>`, so `podAffinity` / `podAntiAffinity`
+  can target (or avoid) a specific workstation — e.g. co-locate one
+  workstation with the Open WebUI pod, or keep two workstations on different
+  nodes.
+- `topologySpreadConstraints` are mostly useful fleet-wide: with `replicas`
+  fixed at 1 per workstation, a constraint selecting on
+  `app.kubernetes.io/name: open-terminal` (plus the release instance label)
+  spreads the set of workstation pods across the chosen topology.
+- An air-gapped agent workstation (egress default-deny) is a natural fit for
+  tainted, dedicated nodes: pair `nodeSelector` with `tolerations` to pin the
+  workload there and keep other pods out.
 
 ## Network policy
 
@@ -215,6 +256,7 @@ kubectl exec deploy/<client> -- curl -s http://open-terminal-<name>:8000/health
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
+| affinity | object | `{}` | Pod affinity / anti-affinity, expressed directly as a Kubernetes `Affinity` object (nodeAffinity, podAffinity, podAntiAffinity). Applied to every instance that does not set its own `affinity`. An instance may override this (including setting `affinity: {}` to drop a chart-wide setting). Note: every workstation carries the label `open-terminal.qaoru.fr/workstation=<name>`, so `podAffinity`/ `podAntiAffinity` can select (or avoid) a specific workstation's pod — e.g. to co-locate one workstation with Open WebUI, or keep two workstations on different nodes/failure domains without touching other workloads. |
 | apiKey | object | `{"existingSecret":"open-terminal-api-key","key":"api-key"}` | API key shared with Open WebUI (bearer auth). The owner creates the Secret (key `api-key`); this chart never holds the key value. An instance may override `apiKey` to use a dedicated secret per workstation. |
 | apiKey.existingSecret | string | `"open-terminal-api-key"` | Existing Secret holding the API key. |
 | apiKey.key | string | `"api-key"` | Key inside the Secret. |
@@ -247,4 +289,8 @@ kubectl exec deploy/<client> -- curl -s http://open-terminal-<name>:8000/health
 | instances[0].workspace.size | string | `"1Gi"` | emptyDir sizeLimit for the workspace (used when persistence is off). |
 | nodeSelector | object | `{}` | Node selector applied to every instance that does not set its own `nodeSelector`. When using the `kata` RuntimeClass, pin to nodes labeled `katacontainers.io/kata-runtime=true` (where kata-deploy installed the runtime); a pod with `runtimeClassName: kata` can fail container creation if it lands on a node without the runtime. An instance may override this (including setting `nodeSelector: {}` to drop a chart-wide pin). |
 | podSecurityContext | object | `{"fsGroup":1000,"seccompProfile":{"type":"RuntimeDefault"}}` | Pod security context (chart-wide; not overridable per instance). The slim image starts as root only so its entrypoint can fix /home/user ownership, then drops to "user" (UID 1000) via gosu with NO sudo. We therefore do NOT set runAsNonRoot here (it would break the entrypoint's ownership fix / privilege drop). fsGroup: 1000 makes the workspace group-writable by the app even before the entrypoint chown runs. |
+| priorityClassName | string | `""` | PriorityClassName for the workstation pods (must reference an existing PriorityClass in the cluster). Empty by default. An instance may override this (including setting `priorityClassName: ""` to drop a chart-wide setting). |
 | runtimeClassName | string | `""` | Pod RuntimeClass (e.g. `kata` for a hardware-isolated VM with its own kernel). Empty/omitted by default. See README.md "Hardened deployment" for the kata setup. An instance may override this (including setting it to `""` to drop a chart-wide kata setting for that workstation). |
+| schedulerName | string | `""` | Scheduler name for the workstation pods (e.g. a custom scheduler). Empty by default (kube-scheduler). An instance may override this (including setting `schedulerName: ""` to drop a chart-wide setting). |
+| tolerations | list | `[]` | Tolerations (Kubernetes `Toleration[]`), e.g. to schedule on tainted nodes dedicated to agent workloads (`node.kubernetes.io` taints etc.). Applied to every instance that does not set its own `tolerations`. An instance may override this (including setting `tolerations: []` to drop a chart-wide setting). |
+| topologySpreadConstraints | list | `[]` | Topology spread constraints (Kubernetes `TopologySpreadConstraint[]`). Applied to every instance that does not set its own `topologySpreadConstraints`. Since each workstation is exactly one pod (replicas is fixed at 1), spreading is mostly relevant when running several workstations: the constraint is evaluated per label selector, so e.g. `topologyKey: kubernetes.io/hostname` with a selector matching `app.kubernetes.io/name: open-terminal` spreads the fleet of workstations across nodes. An instance may override this (including setting `topologySpreadConstraints: []` to drop a chart-wide setting). |
