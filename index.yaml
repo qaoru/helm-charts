@@ -3,6 +3,45 @@ entries:
   open-terminal:
   - annotations:
       artifacthub.io/changes: |
+        - kind: added
+          description: Add scheduling fields (affinity, topologySpreadConstraints, tolerations, priorityClassName, schedulerName), chart-wide and overridable per instance
+      artifacthub.io/images: |-
+        - name: open-terminal
+          image: ghcr.io/open-webui/open-terminal:0.13.0-slim
+      artifacthub.io/links: |
+        - name: Open Terminal (upstream)
+          url: https://github.com/open-webui/open-terminal
+        - name: Source repository
+          url: https://github.com/qaoru/helm-charts/tree/main/open-terminal
+      artifacthub.io/maintainers: |
+        - name: qaoru
+          email: paul@qaoru.fr
+    apiVersion: v2
+    appVersion: 0.14.1-slim
+    created: "2026-10-18T14:38:47.556988039Z"
+    description: Multiple Open Terminal workstations for Open WebUI -- the agent execution
+      sandbox Open WebUI drives from chat -- each a stateful, individually-addressable
+      endpoint with optional Cilium air-gapped network isolation and optional persistent
+      workspace.
+    digest: 1002cf8721de9c805ee102752eaa9e56b3c2597f70922d1d8cf1a31ef901b85c
+    home: https://github.com/qaoru/helm-charts/tree/main/open-terminal
+    icon: https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/open-webui.svg
+    keywords:
+    - open-webui
+    - open-terminal
+    - agent
+    - sandbox
+    - terminal
+    maintainers:
+    - email: paul@qaoru.fr
+      name: qaoru
+    name: open-terminal
+    type: application
+    urls:
+    - https://github.com/qaoru/helm-charts/releases/download/open-terminal-0.2.7/open-terminal-0.2.7.tgz
+    version: 0.2.7
+  - annotations:
+      artifacthub.io/changes: |
         - kind: changed
           description: Update open-terminal image to 0.14.1-slim
       artifacthub.io/images: |-
@@ -669,4 +708,4 @@ entries:
     urls:
     - https://github.com/qaoru/helm-charts/releases/download/wyoming-openwakeword-0.1.0/wyoming-openwakeword-0.1.0.tgz
     version: 0.1.0
-generated: "2026-10-18T08:21:16.578649601Z"
+generated: "2026-10-18T14:38:49.00465551Z"
