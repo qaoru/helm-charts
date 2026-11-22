@@ -434,6 +434,50 @@ entries:
   - annotations:
       artifacthub.io/changes: |
         - kind: changed
+          description: Update unifi image to 10.6.109-ls155
+      artifacthub.io/images: |
+        - name: unifi
+          image: linuxserver/unifi-network-application:10.6.109-ls155
+        - name: mongo-init
+          image: mongo:7.0
+      artifacthub.io/links: |
+        - name: UniFi Network Application (linuxserver image)
+          url: https://hub.docker.com/r/linuxserver/unifi-network-application
+        - name: Source repository
+          url: https://github.com/qaoru/helm-charts/tree/main/unifi
+      artifacthub.io/maintainers: |
+        - name: qaoru
+          email: paul@qaoru.fr
+    apiVersion: v2
+    appVersion: 10.6.109-ls155
+    created: "2026-11-22T13:21:14.520592679Z"
+    dependencies:
+    - condition: metrics.enabled
+      name: unpoller
+      repository: oci://ghcr.io/unpoller/helm-chart
+      version: 2.10.0
+    description: The unifi software is a powerful, enterprise wireless software engine
+      ideal for high-density client deployments requiring low latency and high uptime
+      performance.
+    digest: 28842d34483f185e586ac207f231f24a6e86d78ba199a2927f3a8d43ea4debf1
+    home: https://github.com/qaoru/helm-charts/tree/main/unifi
+    icon: https://raw.githubusercontent.com/homarr-labs/dashboard-icons/main/svg/ubiquiti-unifi.svg
+    keywords:
+    - network
+    - unifi
+    - ubiquiti
+    - controller
+    maintainers:
+    - email: paul@qaoru.fr
+      name: qaoru
+    name: unifi
+    type: application
+    urls:
+    - https://github.com/qaoru/helm-charts/releases/download/unifi-1.1.12/unifi-1.1.12.tgz
+    version: 1.1.12
+  - annotations:
+      artifacthub.io/changes: |
+        - kind: changed
           description: Update unpoller chart to 2.10.0
       artifacthub.io/images: |
         - name: unifi
@@ -918,4 +962,4 @@ entries:
     urls:
     - https://github.com/qaoru/helm-charts/releases/download/wyoming-openwakeword-0.1.0/wyoming-openwakeword-0.1.0.tgz
     version: 0.1.0
-generated: "2026-11-22T13:16:51.488736714Z"
+generated: "2026-11-22T13:21:16.042485011Z"
